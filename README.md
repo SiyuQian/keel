@@ -17,7 +17,10 @@ change those runtime interfaces.
 
 Keel currently focuses on the desktop ADE. Mobile source is retained for reference
 and possible future development, but is not part of the current supported scope.
-The Mobile Checks workflow is disabled in this repository.
+The Mobile Checks workflow is disabled in this repository. Cloud services are
+also outside the current scope: cloud workflows are removed, while their source
+and shared contracts remain. Follow the [upstream synchronization checklist](docs/UPSTREAM.md#upstream-synchronization)
+when importing Orca changes.
 
 Build from source using the instructions below. Orca's downloads, app-store
 listings, hosted services, community channels, and signing arrangements belong

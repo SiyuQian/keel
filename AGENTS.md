@@ -57,6 +57,8 @@ Checks below are review unless a command is named.
 - Claude structured-session changes require the real CLI tests and login described in [verification rules](docs/development-rules.md#verifying-changes).
 - PRs must use the [template](.github/pull_request_template.md), describe user-visible before/after, mechanism, and choice of approach in plain language; no padding.
 
+- Upstream sync must preserve the [Keel scope and CI boundary](docs/UPSTREAM.md#upstream-synchronization): retain mobile/cloud source, keep removed cloud workflows absent, and review repository-local disabled workflow settings. Check: review.
+
 ## Knowledge base
 
 - [Design decisions](docs/design-docs/index.md) and [core beliefs](docs/design-docs/core-beliefs.md).

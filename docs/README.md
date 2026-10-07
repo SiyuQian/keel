@@ -2,7 +2,8 @@
 
 Keel is an ADE developed from Orca. Start with the [project README](../README.md),
 [contributor guide](../.github/CONTRIBUTING.md), and
-[provenance and naming boundary](UPSTREAM.md).
+[provenance and naming boundary](UPSTREAM.md). For Orca imports, use the
+[upstream synchronization checklist](UPSTREAM.md#upstream-synchronization).
 
 ## Engineering map
 

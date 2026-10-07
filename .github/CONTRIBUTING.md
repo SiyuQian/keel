@@ -48,6 +48,12 @@ Good examples:
 
 Avoid vague names like `test`, `misc`, or `changes`.
 
+## Syncing upstream
+
+Follow the [Keel upstream checklist](../docs/UPSTREAM.md#upstream-synchronization).
+Routine imports must retain Keel attribution and scope decisions, keep removed
+cloud workflows absent, and review new workflows and deployment identities.
+
 ## Before Opening a PR
 
 Run the same checks that CI runs:

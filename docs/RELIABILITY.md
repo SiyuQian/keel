@@ -13,8 +13,9 @@ see [the Linux guide](reference/headless-linux-server.md) and
 [daemon operations](reference/orcad-operations.md).
 
 The separate [cloud relay](../cloud/README.md) documents director/cell topology,
-optional PostgreSQL tests, push handling, and gated operational workflows. Those
-runbooks do not establish a Keel-operated service or authorize deployment.
+optional PostgreSQL tests and push handling. Its inherited cloud workflows have
+been removed and Cloud Verify is disabled. Those retained runbooks do not establish
+a Keel-operated service or authorize deployment. See the [upstream checklist](UPSTREAM.md#upstream-synchronization).
 
 `pnpm run check:reliability-gates` checks the repository's configured gates;
 it does not prove end-to-end availability. No Keel SLO, on-call rotation, or error
