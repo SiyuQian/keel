@@ -14,5 +14,9 @@ Changes must preserve cross-platform and SSH behavior and follow the
 [design system](DESIGN.md). Review the user-visible before and after, and validate
 behavior where it actually executes; see [development rules](development-rules.md).
 
-Keel-specific feature priorities, commercial plans, and launch dates have not
+The current scope is the desktop ADE. Mobile source is retained for possible
+future development, but mobile is not currently supported and the Mobile Checks
+workflow is disabled in the Keel repository settings.
+
+Other Keel-specific feature priorities, commercial plans, and launch dates have not
 been specified. Do not infer them from upstream marketing or release cadence.

@@ -15,6 +15,10 @@ inherits Orca's functionality and still uses its application name, CLI commands,
 configuration names, and package identifiers. Documentation naming does not
 change those runtime interfaces.
 
+Keel currently focuses on the desktop ADE. Mobile source is retained for reference
+and possible future development, but is not part of the current supported scope.
+The Mobile Checks workflow is disabled in this repository.
+
 Build from source using the instructions below. Orca's downloads, app-store
 listings, hosted services, community channels, and signing arrangements belong
 to the upstream project; they are not Keel distributions or services.

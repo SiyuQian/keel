@@ -1,5 +1,16 @@
 # Keel Mobile
 
+Mobile is outside Keel's current supported scope. This source and its workflow
+are retained for possible future development; `Mobile Checks` is disabled in
+the Keel repository settings. The setup below documents inherited code, not a
+supported Keel mobile release.
+
+To resume checks when mobile development starts:
+
+```sh
+gh workflow enable mobile.yml --repo SiyuQian/keel
+```
+
 This source is inherited from Orca. Runtime identifiers and upstream service
 configuration remain unchanged; see [project provenance](../docs/UPSTREAM.md).
 
