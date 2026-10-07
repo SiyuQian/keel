@@ -1,6 +1,6 @@
 # Keel UI Style Guide
 
-This is the **UI/visual design** doc for Keel — color tokens, typography, component selection, and UX rules. It is _not_ an architecture doc; for system-level design see [ARCHITECTURE.md](ARCHITECTURE.md). Token values live in `src/renderer/src/assets/main.css` (canonical); this file documents the _roles and rules_ for using them.
+This is the **UI/visual design** doc for Keel — color tokens, typography, component selection, and UX rules. It is _not_ an architecture doc; for system-level design see [ARCHITECTURE.md](../ARCHITECTURE.md). Token values live in `src/renderer/src/assets/main.css` (canonical); this file documents the _roles and rules_ for using them.
 
 ## Overview
 

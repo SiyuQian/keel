@@ -114,7 +114,6 @@ docs/**
 !docs/STYLEGUIDE.md
 # Durable Keel documentation and agent map.
 !docs/README.md
-!docs/ARCHITECTURE.md
 !docs/UPSTREAM.md
 !docs/development-rules.md
 !docs/PLANS.md

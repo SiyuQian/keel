@@ -6,7 +6,7 @@ Keel is an ADE developed from Orca. Start with the [project README](../README.md
 
 ## Engineering map
 
-- [Architecture](ARCHITECTURE.md): runtime domains and ownership boundaries.
+- [Architecture](../ARCHITECTURE.md): runtime domains and ownership boundaries.
 - [Agent instructions](../AGENTS.md) and [development rules](development-rules.md).
 - [Frontend](FRONTEND.md) and [design](DESIGN.md): UI implementation and style guide.
 - [Security](SECURITY.md), [reliability](RELIABILITY.md), and [quality evidence](QUALITY_SCORE.md).

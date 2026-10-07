@@ -55,7 +55,7 @@ See the [contributor guide](.github/CONTRIBUTING.md) for checks and packaging no
 Use [Keel issues](https://github.com/SiyuQian/keel/issues) and
 [pull requests](https://github.com/SiyuQian/keel/pulls) for this project.
 Read the [contributor guide](.github/CONTRIBUTING.md), [agent instructions](AGENTS.md),
-and [architecture](docs/ARCHITECTURE.md) before changing an unfamiliar area.
+and [architecture](ARCHITECTURE.md) before changing an unfamiliar area.
 
 The [mobile app](mobile/README.md), [relay workspace](cloud/README.md), and
 [documentation site](docs/site/README.md) have their own setup instructions.
