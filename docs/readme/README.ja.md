@@ -23,7 +23,7 @@ pnpm dev
 
 - [Documentation index](../README.md)
 - [Contributing](../../.github/CONTRIBUTING.md)
-- [Architecture](../../ARCHITECTURE.md)
+- [Architecture](../ARCHITECTURE.md)
 - [Issues](https://github.com/SiyuQian/keel/issues) · [Pull requests](https://github.com/SiyuQian/keel/pulls)
 
 ## 由来とライセンス

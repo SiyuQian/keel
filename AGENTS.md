@@ -9,7 +9,7 @@ before renaming identifiers; commands, package names, protocols, and paths still
 - `src/preload/`: typed desktop bridges; `src/renderer/`: React UI and presentation state.
 - `src/cli/` and `src/relay/`: CLI and SSH-host execution paths; `src/shared/`: contracts and process primitives.
 - `mobile/`, `cloud/`, `docs/site/`: separate installs; see their READMEs.
-- [Architecture](ARCHITECTURE.md) and [documentation index](docs/README.md) explain the boundaries.
+- [Architecture](docs/ARCHITECTURE.md) and [documentation index](docs/README.md) explain the boundaries.
 
 ## Commands (repository root)
 
