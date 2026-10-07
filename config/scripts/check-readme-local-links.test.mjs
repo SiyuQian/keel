@@ -95,11 +95,12 @@ describe('README local link check', () => {
   })
 
   it('lists E2E changes without reading blobs missing from the sparse checkout', () => {
-    const root = makeFixture({ 'cloud-old.yml': 'shared content\n'.repeat(20) + 'old\n' })
+    const content = 'shared content\n'.repeat(20)
+    const root = makeFixture({ 'cloud-old.yml': `${content}old\n` })
     const base = git(root, ['rev-parse', 'HEAD'])
     const blob = git(root, ['rev-parse', `${base}:cloud-old.yml`])
     rmSync(path.join(root, 'cloud-old.yml'))
-    writeFiles(root, { 'docs/new.md': 'shared content\n'.repeat(20) + 'new\n' })
+    writeFiles(root, { 'docs/new.md': `${content}new\n` })
     git(root, ['add', '-A'])
     git(root, ['commit', '--quiet', '-m', 'replace workflow with docs'])
     git(root, ['config', 'diff.renames', 'true'])
