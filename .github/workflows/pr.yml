@@ -126,7 +126,8 @@ jobs:
           set -euo pipefail
           BASE="${{ github.event.pull_request.base.sha }}"
           DIFF_BASE="$(node config/scripts/git-pull-request-diff-base.mjs "$BASE")"
-          CHANGED="$(git diff --name-only --diff-filter=AMCR "$DIFF_BASE" HEAD)"
+          # Rename detection can fetch missing blobs after checkout drops credentials.
+          CHANGED="$(git diff --name-only --no-renames --diff-filter=AMCR "$DIFF_BASE" HEAD)"
           # Source routes are executable contracts so a test can prove exact
           # authorities, exclusions, and sentinels without evaluating workflow shell.
           TEST_FILES_JSON="$(printf '%s\n' "$CHANGED" | node config/scripts/pr-e2e-source-routing.mjs)"
