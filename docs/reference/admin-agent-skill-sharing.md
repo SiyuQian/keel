@@ -1,12 +1,12 @@
 # Administer agent skill sharing
 
 This guide describes the first-release access, lifecycle, retention, and recovery contract for
-Orca skill sharing. The operator runbook remains the source of truth for incident commands and
+Keel skill sharing. The operator runbook remains the source of truth for incident commands and
 environment-specific procedures.
 
 ## Access model
 
-- Shared bundles are unlisted bearer resources. Orca provides no public browse, search, recipient
+- Shared bundles are unlisted bearer resources. Keel provides no public browse, search, recipient
   inventory, or package index.
 - Anyone with an active, unexpired link can inspect the package and request a short-lived download
   grant without signing in.
@@ -38,7 +38,7 @@ recorded GCS generation and never overwrites an immutable published key.
 ## User and organization departure
 
 Packages belong to an owner tenant and record the publishing user. In an organization tenant,
-another current member can manage the package after its publisher leaves; Orca does not rewrite
+another current member can manage the package after its publisher leaves; Keel does not rewrite
 the recorded creator. Removing a user does not automatically revoke the organization's links,
 delete packages, or remove installed copies.
 
