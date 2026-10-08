@@ -1,14 +1,14 @@
 # DeepSeek Harness integration
 
-Orca detects the community `@deepseek-harness-tui/dsh-tui` launcher (`dsh-tui`, alias
+Keel detects the community `@deepseek-harness-tui/dsh-tui` launcher (`dsh-tui`, alias
 `dst`) and requires the official `@deepseek-ai/dsh` executable too. The launcher
-boots the `dsh-tui` profile; Orca passes `.` to select the current workspace and
+boots the `dsh-tui` profile; Keel passes `.` to select the current workspace and
 reach its composer on the first launch. The official Harness does not bundle this community TUI.
 DSH Console and DeepSeek Build are separate products and are not interchangeable
 with this launch contract.
 
 The official DSH 0.2 CLI accepts both `dsh --profile headless` and `dsh headless`.
-Orca excludes the known `web`, `headless`, `sdk`, `sdk-minimal`, `acp`, and `desktop`
+Keel excludes the known `web`, `headless`, `sdk`, `sdk-minimal`, `acp`, and `desktop`
 profiles from interactive process recognition, along with plugin management and
 configuration dumps. Custom profile names remain eligible because profiles are
 user configurable. Only launcher arguments are inspected; app prompts, resume IDs,
@@ -19,12 +19,12 @@ as an owned block in `$DSH_HOME/cordis.patch.yml`. User entries outside the bloc
 preserved. Local installation respects `DSH_HOME`; the existing SSH installer uses
 the execution host's default `~/.dsh` because SFTP cannot read its environment.
 Hooks report session start, prompt submission, tool start/end, and stopping through
-Orca's host status store. Approval has no dedicated hook; it is not inferred from
+Keel's host status store. Approval has no dedicated hook; it is not inferred from
 an uncaptured screen. Subagent lifecycle events are ignored for parent-pane status.
 
 DSH 0.2 still emits an empty `transcript_path` in Claude-compatible hooks. Its
 session persistence defaults to compressed JSONL under `$DSH_HOME/sessions`.
-Orca can resume a hook-associated session through `dsh-tui --resume <id>`, but
+Keel can resume a hook-associated session through `dsh-tui --resume <id>`, but
 currently does not discover DSH logs in Agent Session History. Resume support alone
 does not establish transcript-history support.
 

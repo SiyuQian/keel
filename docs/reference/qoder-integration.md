@@ -1,6 +1,6 @@
 # Qoder CLI integration
 
-Orca registers `qodercli` as `qoder`: detection, picker/settings, desktop and mobile
+Keel registers `qodercli` as `qoder`: detection, picker/settings, desktop and mobile
 identity, prompt launch, permission flags, managed hooks, workspace trust, and
 session resume use the existing TUI-agent and hook-status paths.
 
@@ -12,7 +12,7 @@ Verified on macOS with Qoder CLI 1.1.64, including its versioned executable
 - `--prompt-interactive` starts an interactive prompt; `--resume <id>` resumes a
   session; `--dangerously-skip-permissions` is the permission bypass flag.
 - Hooks use the Claude-shaped nested configuration in `~/.qoder/settings.json`.
-  Orca registers its own `/hook/qoder` source and preserves user hooks.
+  Keel registers its own `/hook/qoder` source and preserves user hooks.
 - Real SessionStart, UserPromptSubmit, Notification and SessionEnd events are
   captured in `src/shared/__fixtures__/qoder-no-account-hooks.jsonl`, including
   `source: resume` with the original session ID.
@@ -23,7 +23,7 @@ Verified on macOS with Qoder CLI 1.1.64, including its versioned executable
   therefore requires the live composer text, not merely this title or silence.
   Raw PTY fixtures under `src/main/runtime/__fixtures__/qoder-*` cover trust,
   unauthenticated prompt handling and the ready composer.
-- A hidden Orca dev instance launched Qoder from New Tab in a folder workspace.
+- A hidden Keel dev instance launched Qoder from New Tab in a folder workspace.
   Its icon, label, terminal rendering and failed-turn indicator were inspected.
   A harmless prompt reached Qoder, which reported its credit usage limit; the
   canonical hook store recorded Qoder identity, session metadata and failure.
@@ -45,9 +45,9 @@ unverified because the available account has exhausted its credits. Hook event
 mapping for these paths follows the official documentation. The China executable
 `qoderclicn` is not registered; it was not available for verification.
 
-Every launch Orca starts (New Tab, workspace and draft launches, automations)
+Every launch Keel starts (New Tab, workspace and draft launches, automations)
 pre-trusts the workspace at spawn while the agent-wide "Trust the folder when
-Orca starts an agent" setting is on. A hand-typed `qodercli` in a plain terminal
+Keel starts an agent" setting is on. A hand-typed `qodercli` in a plain terminal
 can still show Qoder's trust dialog.
 
 ## Sources

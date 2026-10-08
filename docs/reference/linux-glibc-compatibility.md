@@ -1,6 +1,6 @@
 # Linux glibc Compatibility
 
-Orca's Linux builds target **stock Ubuntu 20.04 and newer** — glibc 2.31 and
+Keel's Linux builds target **stock Ubuntu 20.04 and newer** — glibc 2.31 and
 libstdc++ `GLIBCXX_3.4.28` (also Debian 11, RHEL 9), on both x64 and arm64.
 Packaging enforces this floor automatically; keep it in mind when adding or
 upgrading native dependencies. (The optional speech feature is the one
@@ -26,7 +26,7 @@ and the dynamic loader then refuses to load it:
 /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found (required by .../pty.node)
 ```
 
-Because the Orca main process loads node-pty at startup, that failure crashes the
+Because the Keel main process loads node-pty at startup, that failure crashes the
 whole app before a window appears — this is exactly what shipped in v1.4.150 and
 broke launch on Ubuntu 20.04 ([#9902](https://github.com/stablyai/orca/issues/9902)).
 
@@ -92,7 +92,7 @@ app itself still launches on stock 20.04.
 
 **3. Check before loading, on hosts that ship without a compiler (`orcad`).**
 The two gates above protect the packaged desktop app, where the binary is built and
-verified by the same pipeline. `orcad` is deployed to hosts Orca never built on, so it
+verified by the same pipeline. `orcad` is deployed to hosts Keel never built on, so it
 adds a runtime precondition
 ([`src/main/orcad/node-pty-precondition.ts`](../../src/main/orcad/node-pty-precondition.ts)),
 run from `main.ts` before anything requires `node-pty`. It loads the addon in a **child
@@ -167,7 +167,7 @@ concurrently and calls `getenv()` constantly
 is a browser-process use-after-free about a second into startup — no window, no
 GPU child involved, and the corruption surfaces wherever the next allocation
 lands, which is why reports name unrelated frames (`gtk_widget_realize`,
-libxcb-dri3, FontConfig/expat). Orca 1.4.199/1.4.200 shipped that runtime and
+libxcb-dri3, FontConfig/expat). Keel 1.4.199/1.4.200 shipped that runtime and
 died on launch on Ubuntu + NVIDIA/X11
 ([#20081](https://github.com/stablyai/orca/issues/20081)).
 
@@ -177,6 +177,6 @@ so a published `environ` is never freed, deferring to glibc on 2.41+
 to 42/43/44/45). **Do not downgrade Electron below 43.7.0, or move to another
 line, without confirming that backport is in the target release** —
 `config/scripts/electron-runtime-floor.test.ts` fails the suite if the pin drops
-below the floor. Orca itself writes `process.env` during early startup
+below the floor. Keel itself writes `process.env` during early startup
 (`patchPackagedProcessPath`, `configureOrcaUserDataPathEnv`,
 `hydrate-shell-path`), so it is a first-class trigger, not just a bystander.

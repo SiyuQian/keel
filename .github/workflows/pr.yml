@@ -126,7 +126,8 @@ jobs:
           set -euo pipefail
           BASE="${{ github.event.pull_request.base.sha }}"
           DIFF_BASE="$(node config/scripts/git-pull-request-diff-base.mjs "$BASE")"
-          CHANGED="$(git diff --name-only --diff-filter=AMCR "$DIFF_BASE" HEAD)"
+          # Rename detection can fetch missing blobs after checkout drops credentials.
+          CHANGED="$(git diff --name-only --no-renames --diff-filter=AMCR "$DIFF_BASE" HEAD)"
           # Source routes are executable contracts so a test can prove exact
           # authorities, exclusions, and sentinels without evaluating workflow shell.
           TEST_FILES_JSON="$(printf '%s\n' "$CHANGED" | node config/scripts/pr-e2e-source-routing.mjs)"
@@ -435,6 +436,16 @@ jobs:
         run: |
           if [ "$PREFLIGHT_PHASE_SELECTED" != true ] || [ "$PREFLIGHT_PRIOR_SUCCESS" != true ]; then exit 0; fi
           node config/scripts/ci-unit-plan.mjs
+
+      # Private hosted runners have 8 GB RAM; one compiler can need 7 GB alone.
+      - name: Add typecheck memory headroom
+        if: github.event.repository.private && needs.code_paths.outputs.typecheck == 'true'
+        run: |
+          sudo fallocate -l 4G /keel-ci.swap
+          sudo chmod 600 /keel-ci.swap
+          sudo mkswap /keel-ci.swap
+          sudo swapon /keel-ci.swap
+          free -h
 
       - run: pnpm run typecheck
         if: needs.code_paths.outputs.typecheck == 'true'
@@ -947,20 +958,45 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          # Why blob:none: full history is needed for the merge-base diff, but historical
-          # file contents are not. Blobs are ~89% of this repo's pack, and Git fetches the
-          # few this job actually reads on demand.
+          # Baseline source must be available after checkout removes credentials.
           fetch-depth: 0
-          filter: blob:none
           persist-credentials: false
 
       - uses: ./.github/actions/install-node-dependencies
         with:
           native-runtime: node
 
+      - name: Select compatibility baseline before the first release
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if ! git tag --list 'v[0-9]*' | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ORCA_CROSS_VERSION_BASELINE_REF=$BASE_SHA" >> "$GITHUB_ENV"
+          fi
+
       # R1: an upgrade from the newest release must adopt its live terminal daemon.
       - name: Daemon protocol crossing against newest release
         run: pnpm run check:daemon-protocol-crossing
+
+      - name: Fetch historical Orca compatibility fixtures
+        run: |
+          git fetch --no-tags https://github.com/stablyai/orca.git \
+            refs/tags/v1.4.169:refs/tags/v1.4.169 \
+            refs/tags/v1.4.175:refs/tags/v1.4.175 \
+            refs/tags/v1.4.176:refs/tags/v1.4.176 \
+            refs/tags/v1.4.177:refs/tags/v1.4.177 \
+            refs/tags/v1.4.184:refs/tags/v1.4.184 \
+            refs/tags/v1.4.185:refs/tags/v1.4.185 \
+            refs/tags/v1.4.190:refs/tags/v1.4.190 \
+            refs/tags/v1.4.199:refs/tags/v1.4.199 \
+            refs/tags/v1.4.205:refs/tags/v1.4.205 \
+            refs/tags/v1.4.211:refs/tags/v1.4.211 \
+            refs/tags/v1.4.212:refs/tags/v1.4.212 \
+            refs/tags/v1.4.214:refs/tags/v1.4.214 \
+            refs/tags/v1.4.218:refs/tags/v1.4.218 \
+            refs/tags/v1.4.219:refs/tags/v1.4.219 \
+            refs/tags/v1.4.220:refs/tags/v1.4.220 \
+            refs/tags/v1.4.221:refs/tags/v1.4.221
 
       # R3: a runtime launcher swap must not also bump the daemon protocol (D7.1).
       # The label is read from the event payload, so push again after applying it.
@@ -975,7 +1011,7 @@ jobs:
       # Runs the whole directory so a new file there cannot be left out; an empty match
       # exits 1 ("No test files found"), so this lane cannot pass while running zero tests.
       - name: Old/new client and server compatibility journeys
-        run: pnpm exec vitest run --config config/vitest.config.ts tests/e2e/cross-version-wire/
+        run: pnpm exec vitest run --config config/vitest.config.ts --no-file-parallelism tests/e2e/cross-version-wire/
 
   managed_hook_node18:
     name: managed hooks on Node 18
@@ -1220,8 +1256,10 @@ jobs:
           config/scripts/nsis-process-check.test.mjs
 
       - name: Test Windows-specific boundaries
+        # Private runners have two cores; concurrent Electron probes starve deadlines.
         run: >-
           pnpm exec vitest run --config config/vitest.config.ts
+          --no-file-parallelism
           config/scripts/rebuild-native-deps.test.mjs
           config/scripts/rebuild-native-deps-windows-process-tree.test.mjs
           config/scripts/rebuild-native-deps-node-pty.test.mjs

@@ -177,7 +177,7 @@ jobs:
           BUN_ORCAD_COMMIT: f4092c06d639ee13ad446261dcabc78b27a21fbc
         run: |
           if [ "$RUNNER_OS" != Linux ]; then exit 0; fi
-          git fetch --no-tags --depth=1 origin "$BUN_ORCAD_COMMIT"
+          git fetch --no-tags --depth=1 https://github.com/stablyai/orca.git "$BUN_ORCAD_COMMIT"
           git worktree add --detach "$RUNNER_TEMP/bun-orcad-source" "$BUN_ORCAD_COMMIT"
           pnpm --dir "$RUNNER_TEMP/bun-orcad-source" install --frozen-lockfile --ignore-scripts
           node "$RUNNER_TEMP/bun-orcad-source/config/scripts/build-orcad-bun.mjs" --out-dir "$RUNNER_TEMP/bun-orcad"

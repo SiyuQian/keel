@@ -1,9 +1,16 @@
-# @orca/docs
+# Keel documentation site
 
 This package contains the product documentation and public media intended to
-ship alongside Orca's source code.
+ship alongside Keel's source code.
 
-Open-source product documentation for [Orca](https://www.onorca.dev), served at `/docs` (same URL shape as `https://www.onorca.dev/docs`).
+Product documentation for [Keel](https://github.com/SiyuQian/keel), served locally at `/docs`.
+The internal package name remains `@orca/docs`.
+
+The site shell, logo, canonical URLs, and deployment configuration are inherited
+from Orca. The deployment sections below describe that upstream setup, not an
+active Keel website. A Keel domain and deployment have not been configured by
+this documentation change. Review [project provenance](../UPSTREAM.md) before
+publishing; the MDX content alone does not complete the site's rebranding.
 
 This package is a **self-contained Next.js app**. It is intentionally **not** a root monorepo workspace member, so installing Electron app dependencies does not pull Next/fumadocs.
 
