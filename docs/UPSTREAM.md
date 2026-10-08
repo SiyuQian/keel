@@ -53,6 +53,12 @@ trademark clearance is claimed here.
 
 ## Upstream synchronization
 
+Keep the private-runner swap setup in PR checks: private Linux runners have
+8 GB RAM, while upstream's public runners have 16 GB. Before Keel has a stable
+release tag, compatibility checks use the PR base commit; after the first release,
+they automatically resume checking against the latest stable tag. Preserve both
+checks and ensure baseline source is available without a credentialed lazy fetch.
+
 Keel's current supported scope is the desktop ADE. Preserve these deliberate
 fork differences when importing changes from Orca:
 

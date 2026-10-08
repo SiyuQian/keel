@@ -958,16 +958,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          # Why blob:none: full history is needed for the merge-base diff, but historical
-          # file contents are not. Blobs are ~89% of this repo's pack, and Git fetches the
-          # few this job actually reads on demand.
+          # Baseline source must be available after checkout removes credentials.
           fetch-depth: 0
-          filter: blob:none
           persist-credentials: false
 
       - uses: ./.github/actions/install-node-dependencies
         with:
           native-runtime: node
+
+      - name: Select compatibility baseline before the first release
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if ! git tag --list 'v[0-9]*' | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ORCA_CROSS_VERSION_BASELINE_REF=$BASE_SHA" >> "$GITHUB_ENV"
+          fi
 
       # R1: an upgrade from the newest release must adopt its live terminal daemon.
       - name: Daemon protocol crossing against newest release
