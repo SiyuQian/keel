@@ -978,6 +978,26 @@ jobs:
       - name: Daemon protocol crossing against newest release
         run: pnpm run check:daemon-protocol-crossing
 
+      - name: Fetch historical Orca compatibility fixtures
+        run: |
+          git fetch --no-tags https://github.com/stablyai/orca.git \
+            refs/tags/v1.4.169:refs/tags/v1.4.169 \
+            refs/tags/v1.4.175:refs/tags/v1.4.175 \
+            refs/tags/v1.4.176:refs/tags/v1.4.176 \
+            refs/tags/v1.4.177:refs/tags/v1.4.177 \
+            refs/tags/v1.4.184:refs/tags/v1.4.184 \
+            refs/tags/v1.4.185:refs/tags/v1.4.185 \
+            refs/tags/v1.4.190:refs/tags/v1.4.190 \
+            refs/tags/v1.4.199:refs/tags/v1.4.199 \
+            refs/tags/v1.4.205:refs/tags/v1.4.205 \
+            refs/tags/v1.4.211:refs/tags/v1.4.211 \
+            refs/tags/v1.4.212:refs/tags/v1.4.212 \
+            refs/tags/v1.4.214:refs/tags/v1.4.214 \
+            refs/tags/v1.4.218:refs/tags/v1.4.218 \
+            refs/tags/v1.4.219:refs/tags/v1.4.219 \
+            refs/tags/v1.4.220:refs/tags/v1.4.220 \
+            refs/tags/v1.4.221:refs/tags/v1.4.221
+
       # R3: a runtime launcher swap must not also bump the daemon protocol (D7.1).
       # The label is read from the event payload, so push again after applying it.
       - name: Runtime launcher change does not bump daemon protocol
@@ -991,7 +1011,7 @@ jobs:
       # Runs the whole directory so a new file there cannot be left out; an empty match
       # exits 1 ("No test files found"), so this lane cannot pass while running zero tests.
       - name: Old/new client and server compatibility journeys
-        run: pnpm exec vitest run --config config/vitest.config.ts tests/e2e/cross-version-wire/
+        run: pnpm exec vitest run --config config/vitest.config.ts --no-file-parallelism tests/e2e/cross-version-wire/
 
   managed_hook_node18:
     name: managed hooks on Node 18
@@ -1236,8 +1256,10 @@ jobs:
           config/scripts/nsis-process-check.test.mjs
 
       - name: Test Windows-specific boundaries
+        # Private runners have two cores; concurrent Electron probes starve deadlines.
         run: >-
           pnpm exec vitest run --config config/vitest.config.ts
+          --no-file-parallelism
           config/scripts/rebuild-native-deps.test.mjs
           config/scripts/rebuild-native-deps-windows-process-tree.test.mjs
           config/scripts/rebuild-native-deps-node-pty.test.mjs
