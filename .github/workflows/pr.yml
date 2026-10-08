@@ -437,6 +437,16 @@ jobs:
           if [ "$PREFLIGHT_PHASE_SELECTED" != true ] || [ "$PREFLIGHT_PRIOR_SUCCESS" != true ]; then exit 0; fi
           node config/scripts/ci-unit-plan.mjs
 
+      # Private hosted runners have 8 GB RAM; one compiler can need 7 GB alone.
+      - name: Add typecheck memory headroom
+        if: github.event.repository.private && needs.code_paths.outputs.typecheck == 'true'
+        run: |
+          sudo fallocate -l 4G /keel-ci.swap
+          sudo chmod 600 /keel-ci.swap
+          sudo mkswap /keel-ci.swap
+          sudo swapon /keel-ci.swap
+          free -h
+
       - run: pnpm run typecheck
         if: needs.code_paths.outputs.typecheck == 'true'
 
