@@ -1,4 +1,5 @@
 import React from 'react'
+import { Button } from '@/components/ui/button'
 import { CalendarClock, CircleDot, SquareTerminal, StickyNote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LinearIcon } from '@/components/icons/LinearIcon'
@@ -142,15 +143,23 @@ export const WorktreeCardMetaBadges = React.forwardRef<
         </MetaIconBadge>
       )}
       {review && (
-        <MetaIconBadge
-          label={translate(
-            'auto.components.sidebar.WorktreeCardMeta.3ea2702e62',
-            'Linked {{value0}} #{{value1}}',
-            { value0: getReviewLabel(review), value1: review.number }
-          )}
-        >
-          <ReviewIcon review={review} />
-        </MetaIconBadge>
+        <Button asChild variant="outline" size="xs">
+          <a
+            href={review.url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={translate(
+              'auto.components.sidebar.WorktreeCardMeta.3ea2702e62',
+              'Linked {{value0}} #{{value1}}',
+              { value0: getReviewLabel(review), value1: review.number }
+            )}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ReviewIcon review={review} />
+            <span>{`${getReviewLabel(review)} #${review.number}`}</span>
+          </a>
+        </Button>
       )}
     </div>
   )

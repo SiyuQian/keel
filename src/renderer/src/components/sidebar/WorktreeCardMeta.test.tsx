@@ -381,3 +381,21 @@ describe('WorktreeCardDetailsHover', () => {
     expect(markup).toContain('View on Linear')
   })
 })
+
+describe('sidebar review link', () => {
+  it.each(['github', 'gitlab'] as const)(
+    'shows a visible %s review number with its destination',
+    (provider) => {
+      const markup = renderToStaticMarkup(
+        <WorktreeCardMetaBadges
+          issue={null}
+          linearIssue={null}
+          comment={null}
+          review={{ provider, number: 456, title: 'Review', url: 'https://example.com/review/456' }}
+        />
+      )
+      expect(markup).toContain('href="https://example.com/review/456"')
+      expect(markup).toContain(provider === 'gitlab' ? '>MR #456</span>' : '>PR #456</span>')
+    }
+  )
+})
