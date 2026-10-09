@@ -46,7 +46,7 @@ jobs:
       test: ${{ steps.readiness.outputs.reused != 'true' && steps.filter.outputs.test }}
       orcad_browser: ${{ steps.readiness.outputs.reused != 'true' && steps.filter.outputs.orcad_browser }}
       cross-version-wire: ${{ steps.readiness.outputs.reused != 'true' && steps.filter.outputs.cross-version-wire }}
-      managed_hook_node18: ${{ steps.readiness.outputs.reused != 'true' && steps.filter.outputs.managed_hook_node18 }}
+      managed_hook_node24: ${{ steps.readiness.outputs.reused != 'true' && steps.filter.outputs.managed_hook_node24 }}
       package: ${{ steps.readiness.outputs.reused != 'true' && steps.filter.outputs.package }}
       package_windows: ${{ steps.readiness.outputs.reused != 'true' && steps.filter.outputs.package_windows }}
       e2e_should_run: ${{ steps.e2e_filter.outputs.should_run }}
@@ -433,6 +433,8 @@ jobs:
           PREFLIGHT_PHASE_SELECTED: ${{ needs.code_paths.outputs.typecheck == 'true' }}
           PREFLIGHT_PRIOR_SUCCESS: ${{ job.status == 'success' }}
           ORCA_UNIT_SELECTION_MODE: ${{ vars.ORCA_UNIT_SELECTION_MODE || 'shadow' }}
+          # Five shards use fewer runner minutes; the repository variable can still request ten.
+          ORCA_UNIT_FULL_SHARD_COUNT: ${{ vars.ORCA_UNIT_FULL_SHARD_COUNT || '5' }}
         run: |
           if [ "$PREFLIGHT_PHASE_SELECTED" != true ] || [ "$PREFLIGHT_PRIOR_SUCCESS" != true ]; then exit 0; fi
           node config/scripts/ci-unit-plan.mjs
@@ -966,13 +968,19 @@ jobs:
         with:
           native-runtime: node
 
-      - name: Select compatibility baseline before the first release
+      - name: Select Keel compatibility baseline before fetching fixtures
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          if ! git tag --list 'v[0-9]*' | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "ORCA_CROSS_VERSION_BASELINE_REF=$BASE_SHA" >> "$GITHUB_ENV"
-          fi
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process'
+          import { appendFileSync } from 'node:fs'
+          import { selectLatestStableReleaseTag } from './config/scripts/stable-release-tags.mjs'
+          const tags = execFileSync('git', ['tag', '--list', 'v[0-9]*'], { encoding: 'utf8' }).trim().split('\n')
+          const ref = selectLatestStableReleaseTag(tags) || process.env.BASE_SHA
+          const commit = execFileSync('git', ['rev-parse', `${ref}^{commit}`], { encoding: 'utf8' }).trim()
+          appendFileSync(process.env.GITHUB_ENV, `ORCA_CROSS_VERSION_BASELINE_REF=${commit}\n`)
+          NODE
 
       # R1: an upgrade from the newest release must adopt its live terminal daemon.
       - name: Daemon protocol crossing against newest release
@@ -996,7 +1004,8 @@ jobs:
             refs/tags/v1.4.218:refs/tags/v1.4.218 \
             refs/tags/v1.4.219:refs/tags/v1.4.219 \
             refs/tags/v1.4.220:refs/tags/v1.4.220 \
-            refs/tags/v1.4.221:refs/tags/v1.4.221
+            refs/tags/v1.4.221:refs/tags/v1.4.221 \
+            refs/tags/v1.4.222:refs/tags/v1.4.222
 
       # R3: a runtime launcher swap must not also bump the daemon protocol (D7.1).
       # The label is read from the event payload, so push again after applying it.
@@ -1013,15 +1022,15 @@ jobs:
       - name: Old/new client and server compatibility journeys
         run: pnpm exec vitest run --config config/vitest.config.ts --no-file-parallelism tests/e2e/cross-version-wire/
 
-  managed_hook_node18:
-    name: managed hooks on Node 18
+  managed_hook_node24:
+    name: managed hooks on Node 24
     needs: [code_paths, preflight]
     if: >-
       !cancelled() &&
       needs.code_paths.result == 'success' &&
-      needs.code_paths.outputs.managed_hook_node18 == 'true' &&
+      needs.code_paths.outputs.managed_hook_node24 == 'true' &&
       needs.preflight.result == 'success'
-    # Why ARM: Node 18 publishes linux-arm64; the per-platform runtime files are read as data.
+    # Why ARM: Node 24 publishes linux-arm64; the per-platform runtime files are read as data.
     runs-on: ubuntu-24.04-arm
 
     steps:
@@ -1035,13 +1044,13 @@ jobs:
       - name: Build relay companions
         run: pnpm run build:relay
 
-      - name: Setup Node 18 runtime
+      - name: Setup Node 24 runtime
         uses: actions/setup-node@v6
         with:
-          node-version: '18'
+          node-version: '24'
 
       - name: Smoke managed-hook companions
-        run: node config/scripts/smoke-managed-hook-runtime-node18.mjs
+        run: node config/scripts/smoke-managed-hook-runtime-node24.mjs
 
   package:
     name: package
@@ -1121,7 +1130,15 @@ jobs:
       - name: Install Linux package tooling
         id: linux-package-tools
         background: true
-        run: sudo apt-get update && sudo apt-get install -y cpio rpm
+        run: |
+          # Use the shell lane's bounded refresh; required tooling installation stays fatal.
+          sudo tee /etc/apt/apt.conf.d/99-orca-package-tools >/dev/null <<'APTCONF'
+          Acquire::http::Timeout "15";
+          Acquire::https::Timeout "15";
+          Acquire::Retries "1";
+          APTCONF
+          timeout 120 sudo apt-get update || true
+          timeout 300 sudo apt-get install -y cpio rpm
 
       - name: Build package inputs
         run: |
@@ -1286,6 +1303,9 @@ jobs:
           src/main/agent-hooks/windows-hook-payload-delivery.test.ts
           src/main/jcode/hook-gate-script.test.ts
           src/main/agent-hooks/windows-direct-cmd-hook-command.test.ts
+          src/main/agent-hooks/windows-cmd-hook-command-unicode.test.ts
+          src/main/agent-hooks/windows-batch-hook-launcher.test.ts
+          src/main/agent-hooks/windows-powershell-hook-launcher.test.ts
           src/main/codex/windows-hook-command.test.ts
           src/main/codex/windows-hook-upgrade.test.ts
           src/main/codex/hook-service-managed-install.test.ts
@@ -1307,6 +1327,7 @@ jobs:
           src/main/cursor/hook-service.test.ts
           src/main/orca-profiles/profile-index-store.test.ts
           src/main/startup/windows-install-dir-acl-repair.win32.test.ts
+          src/main/startup/windows-app-data-path.test.ts
           src/main/runtime/repo-worktree-admin-fingerprint.test.ts
           src/main/runtime/worktree-scan-admin-fingerprint-gate.test.ts
           src/shared/secure-file-fsync-flags.test.ts
@@ -1319,6 +1340,7 @@ jobs:
           src/relay/windows-port-scan.win32.test.ts
           src/main/ssh/ssh-relay-upload-stage-windows-identity.test.ts
           src/main/ssh/remote-node-runtime-store-windows.test.ts
+          config/scripts/node-pty-windows-pty-teardown-patch.test.mjs
 
       # Why the :parallel variant: identical to build:release except the three
       # electron-vite targets overlap instead of running back to back. The Linux package
@@ -1433,7 +1455,7 @@ jobs:
       - orcad_browser
       - mobile_web_app
       - cross-version-wire
-      - managed_hook_node18
+      - managed_hook_node24
       - package
       - package_windows
     # Evaluating job results only needs the lightweight container runner.
@@ -1471,8 +1493,8 @@ jobs:
           MOBILE_WEB_APP_SHOULD_RUN: ${{ needs.code_paths.outputs.mobile_web_app }}
           CROSS_VERSION_WIRE: ${{ needs.cross-version-wire.result }}
           CROSS_VERSION_WIRE_SHOULD_RUN: ${{ needs.code_paths.outputs.cross-version-wire }}
-          MANAGED_HOOK_NODE18: ${{ needs.managed_hook_node18.result }}
-          MANAGED_HOOK_NODE18_SHOULD_RUN: ${{ needs.code_paths.outputs.managed_hook_node18 }}
+          MANAGED_HOOK_NODE24: ${{ needs.managed_hook_node24.result }}
+          MANAGED_HOOK_NODE24_SHOULD_RUN: ${{ needs.code_paths.outputs.managed_hook_node24 }}
           PACKAGE: ${{ needs.package.result }}
           PACKAGE_SHOULD_RUN: ${{ needs.code_paths.outputs.package }}
           PACKAGE_WINDOWS: ${{ needs.package_windows.result }}
@@ -1509,7 +1531,7 @@ jobs:
           check_job orcad_browser "$ORCAD_BROWSER" "$ORCAD_BROWSER_SHOULD_RUN"
           check_job mobile_web_app "$MOBILE_WEB_APP" "$MOBILE_WEB_APP_SHOULD_RUN"
           check_job cross-version-wire "$CROSS_VERSION_WIRE" "$CROSS_VERSION_WIRE_SHOULD_RUN"
-          check_job managed_hook_node18 "$MANAGED_HOOK_NODE18" "$MANAGED_HOOK_NODE18_SHOULD_RUN"
+          check_job managed_hook_node24 "$MANAGED_HOOK_NODE24" "$MANAGED_HOOK_NODE24_SHOULD_RUN"
           check_job package "$PACKAGE" "$PACKAGE_SHOULD_RUN"
           check_job package_windows "$PACKAGE_WINDOWS" "$PACKAGE_WINDOWS_SHOULD_RUN"
           exit "$failed"

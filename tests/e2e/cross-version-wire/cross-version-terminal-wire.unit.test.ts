@@ -143,7 +143,7 @@ describe('cross-version remote terminal wire', () => {
   it(
     'skews current code against a real published release',
     () => {
-      expect(baselineRef).toMatch(/^v?\d/)
+      expect(baselineRef).toMatch(/^(?:v\d+\.\d+\.\d+|[0-9a-f]{40})$/)
       expect(baseline.revision).toMatch(/^[0-9a-f]{40}$/)
       expect(baseline.revision).not.toBe(current.revision)
     },

@@ -230,7 +230,7 @@ describe('a structured agent beyond Claude and Codex, across versions', () => {
   it(
     'pairs current code with a real published release',
     () => {
-      expect(baseline.ref).toMatch(/^v?\d/)
+      expect(baseline.ref).toMatch(/^(?:v\d+\.\d+\.\d+|[0-9a-f]{40})$/)
       // Anti-vacuous: the old desktop still says it reads structured chats, so a withheld tab
       // below is this capability's gate answering, not the whole surface being refused.
       expect(oldDesktopClientCapabilities()).toContain(STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY)
