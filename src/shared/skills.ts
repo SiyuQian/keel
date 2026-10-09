@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { AgentType } from './agent-status-types'
 import type { ProjectExecutionRuntimeResolution } from './project-execution-runtime'
+import type { WorkflowObservation } from './workflow-observation'
 
 export type SkillProvider = 'codex' | 'claude' | 'agent-skills'
 
@@ -17,6 +18,10 @@ export type DiscoveredSkill = {
   /** Every root that reached this file. Canonical-path dedup keeps one row but
    *  must not erase co-owning roots, or shared symlinked skills lose agents. */
   rootPaths?: string[]
+  /** Verified plugin identities from all contributing installation sources. */
+  pluginNamespaces?: string[]
+  /** All discovered package directories that contributed this canonical Skill. */
+  directoryPaths?: string[]
   directoryPath: string
   skillFilePath: string
   installed: boolean
@@ -31,6 +36,7 @@ export type SkillDiscoverySource = {
   providers: SkillProvider[]
   /** Agent that owns this root; null is the explicit shared-skills scope. */
   owner: AgentType | null
+  pluginNamespaces?: string[]
   exists: boolean
   /** `unavailable`: the root did not answer in time, so its skills are unknown rather than absent. */
   skippedReason?: 'missing' | 'remote-repo' | 'unavailable'
@@ -40,6 +46,7 @@ export type SkillDiscoveryResult = {
   skills: DiscoveredSkill[]
   sources: SkillDiscoverySource[]
   scannedAt: number
+  workflows?: WorkflowObservation
 }
 
 export type SkillDiscoveryTarget = {
@@ -54,6 +61,7 @@ export type SkillDiscoveryTarget = {
   /** Bypass the host's shared scans because the caller knows disk just changed.
    *  Optional so an older host simply ignores it and scans as it always did. */
   refresh?: boolean
+  includeWorkflows?: boolean
   /** Optional inventory filter for callers that only need known installed skills. */
   names?: string[]
   sourceKinds?: SkillSourceKind[]
@@ -108,6 +116,7 @@ export const SkillDiscoveryTargetSchema: z.ZodType<SkillDiscoveryTarget> = z.obj
     .discriminatedUnion('status', [ResolvedProjectRuntimeSchema, RepairProjectRuntimeSchema])
     .optional(),
   refresh: z.boolean().optional(),
+  includeWorkflows: z.boolean().optional(),
   names: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
   sourceKinds: z
     .array(z.enum(['home', 'repo', 'bundled', 'plugin']))

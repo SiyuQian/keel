@@ -52,6 +52,17 @@ afterEach(() => {
 })
 
 describe('discoverSkillsOnTarget', () => {
+  it('isolates the expanded workflow discovery scope from ordinary inventory', async () => {
+    const target = { kind: 'native-host', cwd: '/workspace' } as const
+    const [ordinary, workflows] = await Promise.all([
+      discoverSkillsOnTarget(target, []),
+      discoverSkillsOnTarget(target, [], { includeWorkflows: true })
+    ])
+    expect(workflows.workflows).toEqual({ entries: [], documents: [], issues: [] })
+    expect(ordinary).not.toHaveProperty('workflows')
+    expect(nativeScans).toHaveLength(2)
+    expect(nativeScans[1]).toMatchObject({ includeUserPlugins: true })
+  })
   it('collapses simultaneous identical requests from several clients into one scan', async () => {
     await Promise.all(
       Array.from({ length: 12 }, () =>
@@ -185,4 +196,44 @@ describe('discoverSkillsOnTarget', () => {
     await expect(call).rejects.toThrow(/try again/i)
     await expect(call).rejects.not.toThrow(/workspace/)
   })
+})
+
+it('gives concurrent partial responses independent warning arrays', async () => {
+  vi.mocked(discoverSkills).mockResolvedValue({
+    skills: [],
+    sources: [
+      {
+        id: 'unavailable',
+        label: 'Home',
+        path: '/skills',
+        sourceKind: 'home',
+        providers: ['codex'],
+        owner: 'codex',
+        exists: true,
+        skippedReason: 'unavailable'
+      }
+    ],
+    scannedAt: 1
+  })
+  const target = { kind: 'native-host', cwd: '/partial' } as const
+  const [first, second] = await Promise.all([
+    discoverSkillsOnTarget(target, [], { includeWorkflows: true }),
+    discoverSkillsOnTarget(target, [], { includeWorkflows: true })
+  ])
+  expect(first.workflows?.issues).toHaveLength(1)
+  expect(second.workflows?.issues).toHaveLength(1)
+  expect(first.workflows?.issues).not.toBe(second.workflows?.issues)
+  vi.mocked(discoverSkills).mockImplementation(async () => emptyResult())
+})
+
+it('isolates workflow acquisition on different WSL execution hosts', async () => {
+  await Promise.all(
+    ['Ubuntu', 'Debian'].map((distro) =>
+      discoverSkillsOnTarget({ kind: 'wsl', distro, homeDir: '/home/dev', cwd: undefined }, [], {
+        includeWorkflows: true,
+        refresh: true
+      })
+    )
+  )
+  expect(wslScans).toHaveLength(2)
 })
