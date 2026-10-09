@@ -1,14 +1,118 @@
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import { expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { classifyPrJobs } from './pr-code-change-scope.mjs'
+import { runProcessSync } from '../../src/shared/child-process/run-process'
 
 const workflow = parse(readFileSync('.github/workflows/pr.yml', 'utf8'))
 const preflight = workflow.jobs.preflight
 const steps = preflight.steps
 const compiler = steps.find((step) => step.run === 'pnpm run typecheck')
 const plan = steps.find((step) => step.id === 'unit-plan')
+
+it('materializes only the rollback oracle pins after its changed-path guard', () => {
+  const rollback = steps.find((step) => step.name === 'Check VM runtime rollback compatibility')
+  const fetchLine = rollback.run
+    .replace(/\\\n\s*/g, ' ')
+    .split('\n')
+    .find((line) => line.trim().startsWith('git -c credential.helper='))
+  expect(fetchLine).toBeDefined()
+  const args = fetchLine.trim().split(/\s+/).slice(1)
+  const pins = [
+    'bf0c77d5bc800e19117084c27fd1441eda9134ad',
+    '25abb9368d98ad84a174f530e02f4228d2269062'
+  ]
+  expect(args).toEqual([
+    '-c',
+    'credential.helper=',
+    'fetch',
+    '--no-tags',
+    '--no-recurse-submodules',
+    '--depth=1',
+    'https://github.com/stablyai/orca.git',
+    ...pins
+  ])
+  const oracle = readFileSync(
+    'config/scripts/run-ephemeral-vm-runtime-store-rollback-repro.mjs',
+    'utf8'
+  )
+  expect(
+    [...oracle.matchAll(/const (?:BASELINE_COMMIT|AFFECTED_MAIN_COMMIT) = '([a-f0-9]{40})'/g)].map(
+      (match) => match[1]
+    )
+  ).toEqual(pins)
+  expect(rollback.run.indexOf('git -c credential.helper=')).toBeGreaterThan(
+    rollback.run.indexOf('\nfi\n')
+  )
+  expect(rollback.run.indexOf('git -c credential.helper=')).toBeLessThan(
+    rollback.run.indexOf('node config/scripts/run-ephemeral-vm-runtime-store-rollback-repro.mjs')
+  )
+  expect(rollback.env.GIT_CONFIG_NOSYSTEM).toBe('1')
+  expect(rollback.env.GIT_CONFIG_GLOBAL).toBe('/dev/null')
+  expect(steps[0].with['persist-credentials']).toBe(false)
+
+  const root = mkdtempSync(join(tmpdir(), 'orca-rollback-pins-'))
+  const source = join(root, 'upstream')
+  const checkout = join(root, 'checkout')
+  const env = {
+    ...process.env,
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null',
+    GIT_CONFIG_COUNT: '0'
+  }
+  const git = (cwd, gitArgs) => runProcessSync({ program: 'git', args: gitArgs, cwd, env })
+  try {
+    mkdirSync(source)
+    mkdirSync(checkout)
+    expect(git(source, ['init']).code).toBe(0)
+    expect(git(checkout, ['init', '--bare']).code).toBe(0)
+    const fixturePins = []
+    for (const name of ['baseline', 'affected', 'unrelated']) {
+      writeFileSync(join(source, 'fixture.txt'), name)
+      expect(git(source, ['add', 'fixture.txt']).code).toBe(0)
+      expect(
+        git(source, [
+          '-c',
+          'user.name=Fixture',
+          '-c',
+          'user.email=fixture@example.invalid',
+          'commit',
+          '-m',
+          name
+        ]).code
+      ).toBe(0)
+      fixturePins.push(git(source, ['rev-parse', 'HEAD']).stdout.trim())
+    }
+    expect(git(source, ['tag', 'unrelated-tag']).code).toBe(0)
+    for (const pin of fixturePins.slice(0, 2)) {
+      expect(
+        git(checkout, ['archive', '--format=tar', `--output=${join(root, 'missing.tar')}`, pin])
+          .code
+      ).not.toBe(0)
+    }
+    const fetch = git(checkout, [
+      ...args.slice(0, -3),
+      pathToFileURL(source).href,
+      ...fixturePins.slice(0, 2)
+    ])
+    expect(fetch.code, fetch.stderr).toBe(0)
+    for (const [index, pin] of fixturePins.slice(0, 2).entries()) {
+      expect(
+        git(checkout, ['archive', '--format=tar', `--output=${join(root, `${index}.tar`)}`, pin])
+          .code
+      ).toBe(0)
+      expect(git(checkout, ['rev-list', '--count', pin]).stdout.trim()).toBe('1')
+    }
+    expect(git(checkout, ['cat-file', '-e', fixturePins[2]]).code).not.toBe(0)
+    expect(git(checkout, ['for-each-ref', '--format=%(refname)']).stdout.trim()).toBe('')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
 
 it('shares one setup and runs the unchanged compiler after static checks finish', () => {
   expect(workflow.jobs.static_analysis).toBeUndefined()

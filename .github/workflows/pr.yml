@@ -279,6 +279,8 @@ jobs:
         if: needs.code_paths.outputs.static_analysis == 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GIT_CONFIG_NOSYSTEM: '1'
+          GIT_CONFIG_GLOBAL: /dev/null
         run: |
           DIFF_BASE="$(node config/scripts/git-pull-request-diff-base.mjs "$BASE_SHA")"
           if git diff --quiet "$DIFF_BASE" HEAD -- \
@@ -294,6 +296,11 @@ jobs:
             echo "VM runtime persistence is unchanged."
             exit 0
           fi
+          # The shallow fork checkout omits the oracle's fixed upstream inputs.
+          git -c credential.helper= fetch --no-tags --no-recurse-submodules --depth=1 \
+            https://github.com/stablyai/orca.git \
+            bf0c77d5bc800e19117084c27fd1441eda9134ad \
+            25abb9368d98ad84a174f530e02f4228d2269062
           node config/scripts/run-ephemeral-vm-runtime-store-rollback-repro.mjs \
             config/scripts/ephemeral-vm-runtime-store-cross-version.test.ts
 

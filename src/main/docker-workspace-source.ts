@@ -46,7 +46,9 @@ export async function copyDockerWorkspaceSource(
   const globalConfig = join(staging, 'gitconfig')
   writeFileSync(globalConfig, '')
   const env = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('GIT_'))
+    ),
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_CONFIG_GLOBAL: globalConfig,
     GIT_TERMINAL_PROMPT: '0'
