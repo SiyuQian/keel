@@ -53,8 +53,8 @@ trademark clearance is claimed here.
 
 ## Upstream synchronization
 
-The October 9, 2026 sync imports 218 commits from `stablyai/orca` through
-`69cf557a698bf25f4bae24d39c19fb1fd8bc13aa`. It retains Keel's README,
+The October 9, 2026 sync imports 219 commits from `stablyai/orca` through
+`cbad6412be5584a0f817037d7d25111e33fb376c`. It retains Keel's README,
 agent guide, PR template, architecture, and tracked reference documents.
 The reference documents remain available to Keel's development rules even
 though upstream removed them; review their details against current source.
