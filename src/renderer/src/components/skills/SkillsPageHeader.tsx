@@ -1,4 +1,14 @@
-import { BookOpen, Download, History, Link2, MoreHorizontal, Share2, Trash2, X } from 'lucide-react'
+import {
+  BookOpen,
+  Download,
+  History,
+  Link2,
+  MoreHorizontal,
+  Share2,
+  Trash2,
+  Workflow,
+  X
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -26,7 +36,8 @@ export function SkillsPageHeader({
   onStartDelete,
   onInstallFromLink,
   onManageInstalls,
-  onOpenSharedLinks
+  onOpenSharedLinks,
+  onOpenWorkflows
 }: {
   skillCount: number
   sourceEntries: readonly SkillSourceInventoryEntry[]
@@ -43,10 +54,11 @@ export function SkillsPageHeader({
   onInstallFromLink: () => void
   onManageInstalls: () => void
   onOpenSharedLinks: () => void
+  onOpenWorkflows: () => void
 }): React.JSX.Element {
   return (
     <header className="shrink-0 border-b border-border">
-      <div className={cn(SKILLS_PAGE_COLUMN, 'flex items-center gap-2 py-3')}>
+      <div className={cn(SKILLS_PAGE_COLUMN, 'flex flex-wrap items-center gap-2 py-3')}>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -68,7 +80,7 @@ export function SkillsPageHeader({
         </Tooltip>
         <div className="mx-1 h-5 w-px bg-border/50" aria-hidden />
         <BookOpen className="size-4 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-24 flex-1">
           <h1 className="truncate text-sm font-semibold">
             {translate('auto.components.skills.SkillsPage.f43ad6edf3', 'Skills')}
           </h1>
@@ -88,6 +100,10 @@ export function SkillsPageHeader({
             ) : null}
           </div>
         </div>
+        <Button type="button" variant="outline" size="sm" onClick={onOpenWorkflows}>
+          <Workflow />
+          {translate('workflows.title', 'Workflows')}
+        </Button>
         <Button type="button" size="sm" onClick={onStartShare}>
           <Share2 className="size-3.5" />
           {translate(

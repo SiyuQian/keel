@@ -75,7 +75,8 @@ export const SKILL_METHODS = [
       const resolvedTarget = resolveDiscoveryTarget(params, runtime)
       return discoverSkillsOnTarget(resolvedTarget, runtime.listRepos(), {
         providerRootOverrides: await runtime.resolveSkillDiscoveryProviderRoots(resolvedTarget),
-        refresh: params.refresh === true
+        refresh: params.refresh === true,
+        ...(params.includeWorkflows ? { includeWorkflows: true } : {})
       })
     }
   }),

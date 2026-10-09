@@ -52,6 +52,16 @@ afterEach(() => {
 })
 
 describe('discoverSkillsOnTarget', () => {
+  it('attaches workflow metadata only to the requesting caller after shared scans', async () => {
+    const target = { kind: 'native-host', cwd: '/workspace' } as const
+    const [ordinary, workflows] = await Promise.all([
+      discoverSkillsOnTarget(target, []),
+      discoverSkillsOnTarget(target, [], { includeWorkflows: true })
+    ])
+    expect(workflows.workflows).toEqual({ entries: [], documents: [], issues: [] })
+    expect(ordinary).not.toHaveProperty('workflows')
+    expect(nativeScans).toHaveLength(1)
+  })
   it('collapses simultaneous identical requests from several clients into one scan', async () => {
     await Promise.all(
       Array.from({ length: 12 }, () =>

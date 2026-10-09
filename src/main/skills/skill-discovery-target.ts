@@ -12,6 +12,7 @@ import { stablePathId } from './skill-discovery-sources'
 import { skillScanSourceKinds } from './skill-discovery-source-filter'
 import { getRepoExecutionHostId } from '../../shared/execution-host'
 import { isSkillRootUnavailableError, SkillScanCoalescer } from './skill-scan-coalescer'
+import { observeWorkflows } from './workflow-discovery'
 
 // Why: on WSL the unit of cost is the wsl.exe boot plus one `find` per skill, so
 // the whole result is what must be shared. The native path shares at root level
@@ -152,7 +153,11 @@ function scanKey(
 export async function discoverSkillsOnTarget(
   target: ResolvedSkillDiscoveryTarget,
   repos: readonly Repo[],
-  options: { refresh?: boolean; providerRootOverrides?: SkillProviderRootOverrides } = {}
+  options: {
+    refresh?: boolean
+    includeWorkflows?: boolean
+    providerRootOverrides?: SkillProviderRootOverrides
+  } = {}
 ): Promise<SkillDiscoveryResult> {
   const refresh = options.refresh === true
   try {
@@ -191,9 +196,20 @@ export async function discoverSkillsOnTarget(
         return { kind: 'native', result }
       }
     )
-    return outcome.value.kind === 'wsl'
-      ? projectWslSkillDiscovery(outcome.value.observation, target.sourceKinds, target.names)
-      : outcome.value.result
+    const result =
+      outcome.value.kind === 'wsl'
+        ? projectWslSkillDiscovery(outcome.value.observation, target.sourceKinds, target.names)
+        : outcome.value.result
+    if (!options.includeWorkflows) {
+      return result
+    }
+    const workflows = await observeWorkflows(result.skills, target)
+    if (result.sources.some((source) => source.skippedReason === 'unavailable')) {
+      workflows.issues.push(
+        'Partial inventory: some Skill locations are unavailable. Refresh to retry.'
+      )
+    }
+    return { ...result, workflows }
   } catch (error) {
     if (!isSkillRootUnavailableError(error)) {
       throw error

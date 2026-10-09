@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { AgentType } from './agent-status-types'
 import type { ProjectExecutionRuntimeResolution } from './project-execution-runtime'
+import type { WorkflowObservation } from './workflow-observation'
 
 export type SkillProvider = 'codex' | 'claude' | 'agent-skills'
 
@@ -40,6 +41,7 @@ export type SkillDiscoveryResult = {
   skills: DiscoveredSkill[]
   sources: SkillDiscoverySource[]
   scannedAt: number
+  workflows?: WorkflowObservation
 }
 
 export type SkillDiscoveryTarget = {
@@ -54,6 +56,7 @@ export type SkillDiscoveryTarget = {
   /** Bypass the host's shared scans because the caller knows disk just changed.
    *  Optional so an older host simply ignores it and scans as it always did. */
   refresh?: boolean
+  includeWorkflows?: boolean
   /** Optional inventory filter for callers that only need known installed skills. */
   names?: string[]
   sourceKinds?: SkillSourceKind[]
@@ -108,6 +111,7 @@ export const SkillDiscoveryTargetSchema: z.ZodType<SkillDiscoveryTarget> = z.obj
     .discriminatedUnion('status', [ResolvedProjectRuntimeSchema, RepairProjectRuntimeSchema])
     .optional(),
   refresh: z.boolean().optional(),
+  includeWorkflows: z.boolean().optional(),
   names: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
   sourceKinds: z
     .array(z.enum(['home', 'repo', 'bundled', 'plugin']))

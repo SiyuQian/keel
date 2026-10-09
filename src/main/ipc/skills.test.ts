@@ -153,6 +153,13 @@ describe('registerSkillsHandlers', () => {
       refresh: false
     })
   })
+  it('returns workflow observations only for an opt-in desktop discovery request', async () => {
+    const handler = getDiscoverHandler()
+    const result = await handler(null, { includeWorkflows: true })
+    expect(result).toMatchObject({ workflows: { entries: [], documents: [], issues: [] } })
+    const ordinary = await handler(null)
+    expect(ordinary).not.toHaveProperty('workflows')
+  })
 
   it('uses the selected project WSL distro for skill discovery', async () => {
     const handler = getDiscoverHandler()
