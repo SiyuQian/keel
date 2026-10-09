@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useLayoutEffect,
   useRef,
   type Dispatch,
   type KeyboardEventHandler,
@@ -59,7 +60,9 @@ export function useNativeChatComposerKeyDown({
 }: UseNativeChatComposerKeyDownArgs): KeyboardEventHandler<HTMLElement> {
   // Read through a ref: the transcript changes on every streamed frame.
   const recallRef = useRef(recall)
-  recallRef.current = recall
+  useLayoutEffect(() => {
+    recallRef.current = recall
+  }, [recall])
   return useCallback(
     (event) => {
       if (isComposing() || event.nativeEvent.isComposing || event.keyCode === 229) {

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
-import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
-import { useState, type KeyboardEventHandler } from 'react'
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
+import { startTransition, Suspense, useState, type KeyboardEventHandler } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   applyPickerSuggestion,
@@ -209,16 +209,19 @@ describe('useNativeChatComposerKeyDown', () => {
     })
 
     const onEveryEdge = (): boolean => true
+    const pendingTranscript = new Promise<void>(() => {})
 
     function Composer({
       prompts,
       initialDraft = '',
       hasAttachments,
+      suspend = false,
       isCaretOnVisualEdge = onEveryEdge
     }: {
       prompts: string[]
       initialDraft?: string
       hasAttachments?: boolean
+      suspend?: boolean
       isCaretOnVisualEdge?: (edge: 'start' | 'end') => boolean
     }): React.JSX.Element {
       const [draft, setDraft] = useState(initialDraft)
@@ -247,6 +250,9 @@ describe('useNativeChatComposerKeyDown', () => {
         setCaret: vi.fn(),
         ...(hasAttachments === undefined ? {} : { hasAttachments })
       })
+      if (suspend) {
+        throw pendingTranscript
+      }
       return (
         <textarea
           aria-label="composer"
@@ -279,6 +285,26 @@ describe('useNativeChatComposerKeyDown', () => {
       expect(press('ArrowDown').draft).toBe('three')
       expect(press('ArrowDown')).toEqual({ draft: '', claimed: true })
       expect(press('ArrowDown')).toEqual({ draft: '', claimed: false })
+    })
+
+    it('recalls the committed transcript while a new render is suspended', async () => {
+      const view = render(
+        <Suspense fallback={null}>
+          <Composer prompts={['committed']} />
+        </Suspense>
+      )
+      await act(async () => {
+        startTransition(() => {
+          view.rerender(
+            <Suspense fallback={null}>
+              <Composer prompts={['uncommitted']} suspend />
+            </Suspense>
+          )
+        })
+      })
+      const field = view.container.querySelector('textarea')!
+      fireEvent.keyDown(field, { key: 'ArrowUp' })
+      expect(field.value).toBe('committed')
     })
 
     it('leaves the arrows to the caret while a typed draft is live', () => {
