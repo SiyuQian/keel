@@ -22,6 +22,7 @@ export const FederationAttachStartParams = z.object({
   setupSource: z.enum(['explicit_request', 'orchestration_default']).optional(),
   terminal: OptionalString,
   agent: OptionalString,
+  agentPreset: OptionalWorkerLaunchPreference,
   model: OptionalWorkerLaunchPreference,
   effort: OptionalWorkerLaunchPreference,
   timeoutMs: OptionalFiniteNumber,

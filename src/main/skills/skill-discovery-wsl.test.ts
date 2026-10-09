@@ -196,3 +196,24 @@ it('reuses one source collator while preserving locale, lexical numbers, and sta
     vi.restoreAllMocks()
   }
 })
+
+it('retains plugin namespaces on canonical aliases from distro-owned manifests', () => {
+  const pluginRoot: SkillScanRoot = {
+    id: 'codex-plugin-cache',
+    label: 'Codex plugin cache',
+    path: '/home/alice/.codex/plugins/cache',
+    sourceKind: 'plugin',
+    providers: ['codex'],
+    owner: 'codex'
+  }
+  const markdown = Buffer.from('---\nname: pr-review\n---\nReview.').toString('base64')
+  const canonical = '/home/alice/.codex/plugins/cache/market/arbitrary/1/skills/pr-review/SKILL.md'
+  const output = [
+    record('S', '0', '/home/alice/.codex/skills/alias/SKILL.md', canonical, '1', markdown),
+    record('S', '1', canonical, canonical, '1', markdown),
+    record('P', '1', canonical, Buffer.from('{"name":"devpilot"}').toString('base64'))
+  ].join('')
+  const result = parseWslSkillDiscoveryOutput(output, [homeRoot, pluginRoot])
+  expect(result.skills).toHaveLength(1)
+  expect(result.skills[0]?.pluginNamespaces).toEqual(['devpilot'])
+})

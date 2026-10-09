@@ -757,3 +757,44 @@ describe('Store', () => {
     expect(reloaded.getWorkspaceSession().activeWorktreeId).toBe('repo1::/worktree-a')
   })
 })
+
+describe('host Agent role persistence', () => {
+  beforeEach(() => {
+    testState.dir = mkdtempSync(join(tmpdir(), 'orca-agent-roles-'))
+  })
+  afterEach(async () => {
+    await closeTestStores()
+    rmSync(testState.dir, { recursive: true, force: true })
+  })
+  it('persists Agent definitions and unresolved bindings across reload without reseeding deleted roles', async () => {
+    const store = await createStore()
+    store.updateSettings({
+      agentPresets: [
+        {
+          id: 'review',
+          name: 'Review',
+          provider: 'codex',
+          systemInstructions: 'x'.repeat(2000),
+          model: 'gpt-5.6-sol',
+          effort: 'high'
+        }
+      ],
+      workflowAgentBindings: {
+        workflow: { defaultAgentId: 'review', stepAgentIds: { implement: 'missing' } }
+      }
+    })
+    store.flush()
+    await closeTestStores()
+    const reloaded = await createStore()
+    expect(reloaded.getSettings().agentPresets?.[0]?.systemInstructions.length).toBe(2000)
+    expect(reloaded.getSettings().workflowAgentBindings?.workflow?.stepAgentIds?.implement).toBe(
+      'missing'
+    )
+    reloaded.updateSettings({ agentPresets: [] })
+    reloaded.flush()
+    await closeTestStores()
+    const deleted = await createStore()
+    expect(deleted.getSettings().agentPresets).toEqual([])
+    expect(deleted.getSettings().workflowAgentBindings?.workflow?.defaultAgentId).toBe('review')
+  })
+})

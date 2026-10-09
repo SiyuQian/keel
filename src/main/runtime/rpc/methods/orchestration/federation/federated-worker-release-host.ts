@@ -1,3 +1,5 @@
+import { closeFederatedWorker } from './federated-structured-worker'
+import { resolveStructuredWorkerForDispatch } from '../../orchestration-structured-worker-lifecycle'
 import { describeUnconfirmedAgentStop } from '../../../../../../shared/pty-liveness-verdict'
 import type { RemoteDispatchAttachmentRow } from '../../../../orchestration/types'
 import type {
@@ -9,7 +11,10 @@ import {
   summarizeWorkerOutputArchive
 } from '../../../../orchestration/worker-output-archive'
 import type { OrcaRuntimeService } from '../../../../orca-runtime'
-import { readArchivedWorkerOutput } from '../worker/worker-archive-read'
+import {
+  projectArchivedOutputLiveness,
+  readArchivedWorkerOutput
+} from '../worker/worker-archive-read'
 import {
   archiveSummary,
   releaseUnknownRecovery,
@@ -152,7 +157,8 @@ export async function releaseRemoteAttachment(args: {
         runtime,
         dispatchId: attachment.dispatch_id,
         terminalHandle: observation.terminal.handle,
-        attachedAtMs: orchestrationTimestampToMs(attachment.created_at)
+        attachedAtMs: orchestrationTimestampToMs(attachment.created_at),
+        structuredWorker: resolveStructuredWorkerForDispatch(db, attachment.dispatch_id)
       })
       db.storeWorkerTerminalArchive({
         dispatchId: attachment.dispatch_id,
@@ -210,7 +216,11 @@ export async function releaseRemoteAttachment(args: {
   // An exited worker still owns a terminal record and tab on the host; close it before
   // reporting `closed_exited_terminal`, exactly as the local release path does.
   try {
-    const close = await runtime.closeTerminal(observation.terminal.handle)
+    const close = await closeFederatedWorker(
+      runtime,
+      attachment.dispatch_id,
+      observation.terminal.handle
+    )
     // A host-certified exit already proved the process is gone, so a kill that stops nothing
     // is not new doubt; anything else that survives the close still is.
     if (!close.ptyKilled && observation.status !== 'exited') {
@@ -296,17 +306,4 @@ function retainedReason(resource: WorkerTerminalResourceRow): WorkerTerminalReta
     return 'user_takeover'
   }
   return 'identity_unproven'
-}
-
-function projectArchivedOutputLiveness<
-  T extends { status: { terminal: string; liveness: string } }
->(output: T, liveness: 'live' | 'unverifiable' | 'exited'): T {
-  return {
-    ...output,
-    status: {
-      ...output.status,
-      terminal: liveness === 'live' ? 'running' : liveness === 'exited' ? 'exited' : 'unknown',
-      liveness
-    }
-  }
 }

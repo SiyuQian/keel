@@ -1,3 +1,6 @@
+import type { OrchestrationSessionCaller } from '../../../../orchestration/orchestration-caller-identity'
+import type { WorkerStartInput } from './worker-start-schema'
+import { resolveDispatchCallerWorktreeId } from '../../orchestration-caller-workspace'
 import type { OrcaRuntimeService } from '../../../../orca-runtime'
 import { isTuiAgent } from '../../../../../../shared/tui-agent-config'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
@@ -33,4 +36,30 @@ export async function prepareFederationConfiguredWorkerStart(
     args.createsWorktree ? { repo: args.params.repo } : { worktree: args.params.worktree }
   )
   return prepareFederationAttachmentWorkerStart({ ...args, params })
+}
+
+export function resolveLocalWorkerConfiguredAgentParams(
+  runtime: OrcaRuntimeService,
+  params: WorkerStartInput,
+  callerSession: OrchestrationSessionCaller | undefined
+) {
+  return resolveWorkerConfiguredAgentParams(runtime, params, async () => {
+    const createsWorktree = params.worktree === 'new-child' || params.worktree === 'new-top-level'
+    const callerWorkspaceId = await resolveDispatchCallerWorktreeId(
+      runtime,
+      params.from,
+      callerSession
+    )
+    const parent = createsWorktree
+      ? await runtime.showManagedWorktree(`id:${callerWorkspaceId}`)
+      : undefined
+    return createsWorktree
+      ? { repo: params.repo ?? parent?.repoId }
+      : {
+          worktree:
+            !params.worktree || params.worktree === 'current'
+              ? `id:${callerWorkspaceId}`
+              : params.worktree
+        }
+  })
 }

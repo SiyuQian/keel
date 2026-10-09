@@ -31,3 +31,5 @@ implemented Orca identifiers. Upstream hosted integrations require separate revi
 before changing those paths. `audits/` and `bug-reproductions/` contain historical
 measurements and transcripts. They remain evidence, not a current Keel quality
 certification. Original names and output in captured records are intentional.
+
+[Agent presets and workflow bindings](reference/agent-presets-workflows.md) describes reusable roles, CLI launch selection and execution-host ownership.

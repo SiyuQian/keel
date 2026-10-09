@@ -1,3 +1,5 @@
+import { resolveWorkerAgentPreset } from './worker-agent-preset'
+import type { AgentPreset } from '../../../../../../shared/agent-presets'
 import { isTuiAgent } from '../../../../../../shared/tui-agent-config'
 import type { TuiAgent } from '../../../../../../shared/tui-agent'
 import type { OrcaRuntimeService } from '../../../../orca-runtime'
@@ -40,7 +42,7 @@ export function validateFederatedWorkerStartPlacement(
       '--terminal reuses an existing agent and cannot combine with --agent.'
     )
   }
-  if (!params.terminal && !params.agent) {
+  if (!params.terminal && !params.agent && !params.agentPreset) {
     throw new OrchestrationError(
       'agent_unconfigured',
       'A configured --agent is required when remote worker-start creates a terminal.'
@@ -83,6 +85,7 @@ export function prepareLocalWorkerStart(args: {
     createsWorktree,
     terminal: params.terminal,
     agent: params.agent,
+    agentPreset: resolveWorkerAgentPreset(runtime, params),
     model: params.model,
     effort: params.effort,
     missingAgentMessage: 'A configured --agent is required when worker-start creates a terminal.'
@@ -130,6 +133,7 @@ export function prepareFederationAttachmentWorkerStart(args: {
     createsWorktree,
     terminal: params.terminal,
     agent: params.agent,
+    agentPreset: resolveWorkerAgentPreset(runtime, params),
     model: params.model,
     effort: params.effort,
     missingAgentMessage:
@@ -145,12 +149,14 @@ function resolveWorkerStartAgent(args: {
   agent?: string
   model?: string
   effort?: string
+  agentPreset?: AgentPreset
   missingAgentMessage: string
 }): { agent: TuiAgent | undefined; launch: WorkerStartLaunch } {
-  const agent = args.agent
-    ? isTuiAgent(args.agent)
-      ? args.agent
-      : args.runtime.resolveOrchestrationAgentLauncher?.(args.agent)
+  const selectedAgent = args.agentPreset?.provider ?? args.agent
+  const agent = selectedAgent
+    ? isTuiAgent(selectedAgent)
+      ? selectedAgent
+      : args.runtime.resolveOrchestrationAgentLauncher?.(selectedAgent)
     : undefined
   if (!args.terminal && !agent) {
     throw new OrchestrationError('agent_unconfigured', args.missingAgentMessage)
@@ -163,8 +169,9 @@ function resolveWorkerStartAgent(args: {
         agent,
         openCodeModelLaunchSupported: args.openCodeModelLaunchSupported,
         createsWorktree: args.createsWorktree,
-        model: args.model,
-        effort: args.effort
+        model: args.agentPreset?.model ?? args.model,
+        effort: args.agentPreset?.effort ?? args.effort,
+        agentPreset: args.agentPreset
       })
     }
   }

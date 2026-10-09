@@ -71,6 +71,8 @@ export type RuntimeStore = {
   getMobileClientTabSelections?: Store['getMobileClientTabSelections']
   setMobileClientTabSelections?: Store['setMobileClientTabSelections']
   getSettings(): {
+    agentPresets?: GlobalSettings['agentPresets']
+    workflowAgentBindings?: GlobalSettings['workflowAgentBindings']
     workspaceDir: string
     nestWorkspaces: boolean
     // Read by worktree placement: decides whether this project's worktrees

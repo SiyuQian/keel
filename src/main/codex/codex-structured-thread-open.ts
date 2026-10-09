@@ -5,6 +5,7 @@
 // recording it would make the durable handle chain lie about what this session
 // actually proved.
 
+import type { AgentPreset } from '../../shared/agent-presets'
 import {
   isCodexAppServerRequestError,
   type CodexAppServerConnection
@@ -91,11 +92,22 @@ export async function openCodexThread(
     /** Why: Codex renders a thread's base instructions for its opening model; a first turn on
      *  another model reads as a mid-conversation switch and injects a second full prompt. */
     model?: string
+    effort?: string
+    developerInstructions?: string
+    agentPreset?: AgentPreset
   },
   timeoutMs: number | undefined
 ): Promise<CodexOpenedThread> {
   const resumeThreadId = launch.resumeThreadId
-  const threadSettings = { cwd: launch.cwd, ...launch.permissionPolicy }
+  const developerInstructions =
+    launch.agentPreset?.systemInstructions ?? launch.developerInstructions
+  const presetEffort = launch.agentPreset?.effort ?? launch.effort
+  const threadSettings = {
+    cwd: launch.cwd,
+    ...launch.permissionPolicy,
+    ...(presetEffort ? { config: { model_reasoning_effort: presetEffort } } : {}),
+    ...(developerInstructions !== undefined ? { developerInstructions } : {})
+  }
   const startThread = (): Promise<unknown> =>
     connection.request(
       'thread/start',

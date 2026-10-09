@@ -1,3 +1,6 @@
+import { closeFederatedWorker } from './federated-structured-worker'
+import { readStructuredWorkerOutput } from '../../orchestration-structured-worker-lifecycle'
+import { isStructuredWorkerHandle } from '../../../../structured-worker-identity'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
 import type { RemoteDispatchAttachmentRow } from '../../../../orchestration/types'
 import { defineMethod } from '../../../core'
@@ -91,6 +94,12 @@ export const ORCHESTRATION_FEDERATION_CONTROL_METHODS = [
           `Remote Dispatch ${params.dispatchId} no longer resolves to its exact process.`
         )
       }
+      if (isStructuredWorkerHandle(observation.terminal.handle)) {
+        throw new OrchestrationError(
+          'archive_unavailable',
+          'This Agent has no PTY output. Use worker-read --source transcript.'
+        )
+      }
       return {
         dispatchId: params.dispatchId,
         runtimeEpoch: runtime.getRuntimeId(),
@@ -148,28 +157,43 @@ export const ORCHESTRATION_FEDERATION_CONTROL_METHODS = [
           `Remote Dispatch ${params.dispatchId} no longer resolves to its exact process.`
         )
       }
-      const output = await readExactWorkerOutput({
-        runtime,
-        dispatchId: params.dispatchId,
-        terminalHandle: observation.terminal.handle,
-        workerState: attachment.state,
-        terminalStatus:
-          observation.status === 'exited'
-            ? 'exited'
-            : observation.status === 'unverifiable'
-              ? 'unknown'
-              : 'running',
-        terminalLiveness:
-          observation.status === 'unverifiable'
-            ? 'unverifiable'
-            : observation.status === 'exited'
+      const output =
+        (await readStructuredWorkerOutput({
+          db: runtime.getOrchestrationDb(),
+          dispatchId: params.dispatchId,
+          workerState: attachment.state,
+          liveness:
+            observation.status === 'live'
+              ? 'live'
+              : observation.status === 'exited'
+                ? 'exited'
+                : 'unverifiable',
+          source: params.source,
+          cursor: params.cursor,
+          limit: params.limit
+        })) ??
+        (await readExactWorkerOutput({
+          runtime,
+          dispatchId: params.dispatchId,
+          terminalHandle: observation.terminal.handle,
+          workerState: attachment.state,
+          terminalStatus:
+            observation.status === 'exited'
               ? 'exited'
-              : 'live',
-        attachedAt: attachment.created_at,
-        source: params.source,
-        cursor: params.cursor,
-        limit: params.limit
-      })
+              : observation.status === 'unverifiable'
+                ? 'unknown'
+                : 'running',
+          terminalLiveness:
+            observation.status === 'unverifiable'
+              ? 'unverifiable'
+              : observation.status === 'exited'
+                ? 'exited'
+                : 'live',
+          attachedAt: attachment.created_at,
+          source: params.source,
+          cursor: params.cursor,
+          limit: params.limit
+        }))
       const afterRead = await inspectRemoteAttachment(runtime, params.dispatchId)
       if (!afterRead.exact) {
         throw new OrchestrationError(
@@ -214,7 +238,11 @@ export const ORCHESTRATION_FEDERATION_CONTROL_METHODS = [
         }
       }
       try {
-        const close = await runtime.closeTerminal(observation.terminal.handle)
+        const close = await closeFederatedWorker(
+          runtime,
+          params.dispatchId,
+          observation.terminal.handle
+        )
         if (!close.ptyKilled) {
           // The tab is retired but the process was never confirmed stopped, so
           // the coordinator must not be told this dispatch reached 'stopped'.

@@ -48,6 +48,28 @@ describe('orchestration worker-start CLI contract', () => {
       json
     } as never)
 
+  it('gates and forwards a stable Agent preset selector without choosing a provider or model', async () => {
+    callMock
+      .mockResolvedValueOnce({ result: { capabilities: ['agent-presets-v1'] } })
+      .mockResolvedValueOnce({ result: { state: 'ready' } })
+    await invokeWorkerStart(
+      new Map([
+        ['agent-preset', 'review'],
+        ['spec', 'Review preceding results.'],
+        ['from', 'term_coord']
+      ])
+    )
+    expect(callMock).toHaveBeenLastCalledWith(
+      'orchestration.workerStart',
+      expect.objectContaining({ agentPreset: 'review', agent: undefined })
+    )
+    callMock.mockReset().mockResolvedValue({ result: { capabilities: [] } })
+    await expect(invokeWorkerStart(new Map([['agent-preset', 'review']]))).rejects.toThrow(
+      'does not support Agent presets'
+    )
+    expect(callMock).toHaveBeenCalledTimes(1)
+  })
+
   it('passes the complete supported creation contract and retry receipt', async () => {
     callMock.mockResolvedValue({
       result: {

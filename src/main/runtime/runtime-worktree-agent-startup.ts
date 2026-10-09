@@ -1,3 +1,4 @@
+import { assertAgentPresetTerminalLine } from '../../shared/agent-preset-instructions'
 import { agentStartedTelemetry } from '../agent-launch/agent-started-telemetry'
 import type { AgentLaunchPreferences } from '../../shared/agent-session-host-authority'
 import type { Repo } from '../../shared/repo-types'
@@ -152,6 +153,7 @@ export function buildWorktreeStartupForAgent(
     platform: environment.getLaunchPlatform(),
     isRemote: repoIsRemote(repo),
     ...(environment.agentArgs !== undefined ? { agentArgs: environment.agentArgs } : {}),
+    agentPreset: environment.launchPreferences?.agentPreset,
     sessionOptions: environment.toSessionOptions(environment.launchPreferences)
   })
   const prompt = environment.prompt ?? ''
@@ -179,6 +181,10 @@ export function buildWorktreeStartupForAgent(
   if (!startupPlan) {
     throw new Error(`Could not build launch command for ${agent}.`)
   }
+  if (environment.launchPreferences?.agentPreset) {
+    assertAgentPresetTerminalLine(environment.getLaunchPlatform(), startupPlan.launchCommand)
+  }
+
   return {
     agent,
     startup: {

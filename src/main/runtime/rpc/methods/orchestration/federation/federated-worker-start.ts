@@ -1,3 +1,4 @@
+import { assertRemoteAgentPresetConfirmed } from './federation-start-receipt'
 import type { OrchestrationSessionCaller } from '../../../../orchestration/orchestration-caller-identity'
 import { isTuiAgent } from '../../../../../../shared/tui-agent-config'
 import type { RuntimeStatus } from '../../../../../../shared/runtime-types'
@@ -72,6 +73,12 @@ export async function startFederatedWorker(args: {
   const createsWorktree = worktree === 'new-top-level'
   assertWorkerLaunchPreferencesCreateTerminal(params)
   validateFederatedWorkerStartPlacement(params, createsWorktree)
+  if (params.agentPreset && (params.agent || params.model || params.effort)) {
+    throw new OrchestrationError(
+      'invalid_argument',
+      '--agent-preset cannot combine with --agent, --model or --effort.'
+    )
+  }
   const requestedLaunch = createPendingWorkerLaunchReceipt({
     agent: isTuiAgent(params.agent) ? params.agent : null,
     model: params.model,
@@ -104,6 +111,7 @@ export async function startFederatedWorker(args: {
   assertWorkerLaunchPreferencesRuntimeSupported({
     model: params.model,
     effort: params.effort,
+    agentPreset: params.agentPreset,
     capabilities: status.capabilities,
     serverName: server.name
   })
@@ -138,6 +146,7 @@ export async function startFederatedWorker(args: {
       baseBranch: params.baseBranch ?? null,
       terminal: params.terminal ?? null,
       agent: params.agent ?? null,
+      ...(params.agentPreset ? { agentPreset: params.agentPreset } : {}),
       launch: requestedLaunch,
       timeoutMs: budgets.readinessTimeoutMs,
       setup: setupDecision,
@@ -188,6 +197,7 @@ export async function startFederatedWorker(args: {
             : undefined,
           terminal: params.terminal,
           agent: params.agent,
+          ...(params.agentPreset ? { agentPreset: params.agentPreset } : {}),
           model: params.model,
           effort: params.effort,
           timeoutMs: budgets.readinessTimeoutMs,
@@ -204,6 +214,7 @@ export async function startFederatedWorker(args: {
         'The worker server returned a different Dispatch attachment.'
       )
     }
+    assertRemoteAgentPresetConfirmed(params.agentPreset, remote)
     const launch = resolveFederatedWorkerLaunchReceipt(
       remote.launch,
       requestedLaunch,

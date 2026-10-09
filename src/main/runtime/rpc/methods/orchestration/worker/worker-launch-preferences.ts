@@ -1,3 +1,4 @@
+import { AGENT_PRESETS_CAPABILITY, type AgentPreset } from '../../../../../../shared/agent-presets'
 import type { AgentLaunchPreferences } from '../../../../../../shared/agent-session-host-authority'
 import {
   findCatalogModel,
@@ -15,6 +16,7 @@ export type OrchestrationWorkerLaunchSelection = {
   agent: TuiAgent | null
   model: string | null
   effort: string | null
+  agentPreset?: AgentPreset
 }
 
 export type OrchestrationWorkerLaunchReceipt = {
@@ -26,11 +28,13 @@ export function createWorkerLaunchReceipt(args: {
   agent: TuiAgent | null
   model?: string
   effort?: string
+  agentPreset?: AgentPreset
 }): OrchestrationWorkerLaunchReceipt {
   const selection = {
     agent: args.agent,
     model: args.model ?? null,
-    effort: args.effort ?? null
+    effort: args.effort ?? null,
+    ...(args.agentPreset ? { agentPreset: { ...args.agentPreset } } : {})
   }
   return { requested: selection, effective: { ...selection } }
 }
@@ -39,12 +43,14 @@ export function createPendingWorkerLaunchReceipt(args: {
   agent: TuiAgent | null
   model?: string
   effort?: string
+  agentPreset?: AgentPreset
 }): OrchestrationWorkerLaunchReceipt {
   return {
     requested: {
       agent: args.agent,
       model: args.model ?? null,
-      effort: args.effort ?? null
+      effort: args.effort ?? null,
+      ...(args.agentPreset ? { agentPreset: { ...args.agentPreset } } : {})
     },
     effective: null
   }
@@ -56,6 +62,7 @@ export function resolveWorkerLaunchPreferences(args: {
   createsWorktree?: boolean
   model?: string
   effort?: string
+  agentPreset?: AgentPreset
 }): {
   preferences: AgentLaunchPreferences | undefined
   receipt: OrchestrationWorkerLaunchReceipt
@@ -65,8 +72,8 @@ export function resolveWorkerLaunchPreferences(args: {
   }
   if (!args.model) {
     return {
-      preferences: undefined,
-      receipt: createWorkerLaunchReceipt({ agent: args.agent })
+      preferences: args.agentPreset ? { agentPreset: { ...args.agentPreset } } : undefined,
+      receipt: createWorkerLaunchReceipt({ agent: args.agent, agentPreset: args.agentPreset })
     }
   }
 
@@ -125,7 +132,10 @@ export function resolveWorkerLaunchPreferences(args: {
     )
   }
 
-  const preferences: AgentLaunchPreferences = requested
+  const preferences: AgentLaunchPreferences = {
+    ...requested,
+    ...(args.agentPreset ? { agentPreset: { ...args.agentPreset } } : {})
+  }
   return {
     preferences,
     receipt: createWorkerLaunchReceipt({ agent: args.agent, ...preferences })
@@ -136,11 +146,14 @@ export function assertWorkerLaunchPreferencesCreateTerminal(args: {
   terminal?: string
   model?: string
   effort?: string
+  agentPreset?: string
 }): void {
-  if (args.terminal && (args.model || args.effort)) {
+  if (args.terminal && (args.model || args.effort || args.agentPreset)) {
     throw new OrchestrationError(
       'invalid_argument',
-      '--model and --effort cannot be applied when reusing an existing terminal.'
+      args.agentPreset
+        ? '--agent-preset requires a fresh session and cannot reuse --terminal.'
+        : '--model and --effort cannot be applied when reusing an existing terminal.'
     )
   }
 }
@@ -148,9 +161,16 @@ export function assertWorkerLaunchPreferencesCreateTerminal(args: {
 export function assertWorkerLaunchPreferencesRuntimeSupported(args: {
   model?: string
   effort?: string
+  agentPreset?: string
   capabilities?: readonly string[]
   serverName: string
 }): void {
+  if (args.agentPreset && !args.capabilities?.includes(AGENT_PRESETS_CAPABILITY)) {
+    throw new OrchestrationError(
+      'capability_unsupported',
+      `Connected server ${args.serverName} does not support Agent presets.`
+    )
+  }
   if (
     (args.model || args.effort) &&
     !args.capabilities?.includes(ORCHESTRATION_WORKER_LAUNCH_PREFERENCES_RUNTIME_CAPABILITY)

@@ -1,3 +1,4 @@
+import type { AgentPreset, WorkflowAgentBindings } from './agent-presets'
 import type { NativeChatGlobalSettings } from './native-chat-appearance-settings'
 import type { ExecutionHostId } from './execution-host'
 import type { OrcaWorkspaceLayout } from './orca-workspace-layout'
@@ -48,6 +49,8 @@ export type { WorktreeVisibilityDefaults } from './repo-types'
 export type MiniMaxEndpoint = 'overseas' | 'cn'
 
 export type GlobalSettings = NativeChatGlobalSettings & {
+  agentPresets?: AgentPreset[]
+  workflowAgentBindings?: WorkflowAgentBindings
   workspaceDir: string
   /** Host-owned defaults used when a repository has no explicit visibility override. */
   worktreeVisibilityDefaults?: WorktreeVisibilityDefaults

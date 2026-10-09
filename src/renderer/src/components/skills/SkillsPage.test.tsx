@@ -156,6 +156,31 @@ afterEach(async () => {
 })
 
 describe('SkillsPage', () => {
+  it('opens Workflow Explorer and returns to Skills on Escape', async () => {
+    const closeSkillsPage = vi.fn()
+    const discover = vi.fn().mockResolvedValue({
+      ...discoveryResult(['alpha']),
+      workflows: { entries: [], documents: [], issues: [] }
+    })
+    useAppStore.setState({ closeSkillsPage })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: { skills: skillsApi(discover), runtimeEnvironments: { call: vi.fn() } }
+    })
+    await renderPage()
+    await flushMicrotasks()
+    await act(async () => {
+      buttonNamed('Workflows').click()
+    })
+    await flushMicrotasks()
+    expect(container?.textContent).toContain('No installed workflows')
+    expect(discover).toHaveBeenCalledWith(expect.objectContaining({ includeWorkflows: true }))
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(renderedSkillNames()).toEqual(['alpha'])
+    expect(closeSkillsPage).not.toHaveBeenCalled()
+  })
   it('uses platform-neutral Escape navigation without stealing editable input Escape', async () => {
     const closeSkillsPage = vi.fn()
     const discover = vi.fn().mockResolvedValue(discoveryResult(['alpha']))

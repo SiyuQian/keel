@@ -99,7 +99,18 @@ export async function resolveClaudeAcquisitionLaunch(args: {
     const spawn = claudeStructuredSpawnOptions({ launch, saved: input.options })
     return {
       ...launch,
-      options: spawn.sdkOptions,
+      options: {
+        ...spawn.sdkOptions,
+        ...(input.agentPreset
+          ? {
+              systemPrompt: {
+                type: 'preset' as const,
+                preset: 'claude_code' as const,
+                append: input.agentPreset.systemInstructions
+              }
+            }
+          : {})
+      },
       savedOptions: {
         options: spawn.options,
         skipped: spawn.skipped,

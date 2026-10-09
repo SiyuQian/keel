@@ -1,9 +1,7 @@
-import { waitForWorkerAgentReady } from '../../../../launched-agent-composer-readiness'
+import { prepareFederatedAgentPreset } from '../worker/worker-agent-preset'
+import { createFederatedStructuredWorker } from './federated-structured-worker'
+import { deliverWorkerDispatchPreamble } from '../worker/deliver-worker-dispatch-preamble'
 import type { TuiAgent } from '../../../../../../shared/tui-agent'
-import { describeTerminalWaitBlockedReason } from '../../../../../../shared/terminal-wait-blocked-reason-legacy-alias'
-import { buildDispatchPreamble } from '../../../../orchestration/preamble'
-import { sendAgentTurn } from '../../../../orchestration/send-agent-turn'
-import { createWorkerBriefWriteGuard } from '../../../../launched-agent-write-guard'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
 import { defineMethod } from '../../../core'
 import { assertOrchestrationWorktreeCreationSupported } from '../worker/folder-worktree-placement'
@@ -12,13 +10,11 @@ import {
   appendFederationTerminalEffects,
   type FederationEffect
 } from './federation-effects'
-import type { WorkerSetupReceipt } from '../worker/worker-topology'
-import {
-  monitorFederatedSetup,
-  persistFederatedReadinessStage,
-  persistFederatedSetupSpawnFailure,
-  persistFederatedSetupWaitOutcome
-} from './federation-setup'
+import type {
+  WorkerSetupReceipt,
+  createStructuredWorkerSessionForWorktree
+} from '../worker/worker-topology'
+import { monitorFederatedSetup, prepareFederatedWorkerReadiness } from './federation-setup'
 import { FederationAttachStartParams } from './federation-start-schema'
 import { failFederatedAttachmentWithReceipt } from './federation-start-receipt'
 import { prepareFederationWorkerLaunchOnHost } from '../worker/worker-opencode-model-preflight'
@@ -27,7 +23,6 @@ import {
   resolveWorkerStartReadinessTimeoutMs
 } from '../../../../../../shared/orchestration-timing-budgets'
 import { assertWorkerStartTaskSpecWithinPromptBudget } from '../worker/worker-start-prompt-budget'
-import { prepareFederatedAttachmentAuthority } from './federation-attachment-authority'
 
 export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
   defineMethod({
@@ -68,6 +63,12 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
         })
       }
 
+      const preset = launch.preferences?.agentPreset
+      const nativePreset = await prepareFederatedAgentPreset(
+        runtime,
+        preset,
+        createsWorktree ? { repo: params.repo } : { worktree: params.worktree }
+      )
       const db = runtime.getOrchestrationDb()
       db.createRemoteDispatchAttachment({
         runId: params.runId,
@@ -83,6 +84,9 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
       let failedStage = createsWorktree ? 'worktree_create' : 'worktree_resolve'
       let worktree
       let terminalHandle = params.terminal
+      let structuredSession: Awaited<
+        ReturnType<typeof createStructuredWorkerSessionForWorktree>
+      > | null = null
       const setupSource = createsWorktree
         ? (params.setupSource ?? (params.setup ? 'explicit_request' : 'orchestration_default'))
         : 'existing_worktree'
@@ -114,7 +118,7 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
             awaitTerminalProvisioning: true,
             observeSetupCompletion: true,
             createdWithAgent: agent as TuiAgent,
-            startupAgent: agent as TuiAgent,
+            ...(nativePreset || !agent ? {} : { startupAgent: agent }),
             startupLaunchSource: 'orchestration',
             ...(launch.preferences ? { startupLaunchPreferences: launch.preferences } : {}),
             activate: false,
@@ -181,12 +185,12 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
               action: 'reused',
               id: terminalHandle
             })
-          } else {
+          } else if (!nativePreset) {
             failedStage = 'terminal_create'
             const terminal = await runtime.createTerminal(`id:${worktree.id}`, {
               // Why: agent ids are not shell commands (`cursor` is the desktop app,
               // its CLI is `cursor-agent`); resolve through the TUI agent config.
-              startupAgent: agent as TuiAgent,
+              ...(nativePreset || !agent ? {} : { startupAgent: agent }),
               launchSource: 'orchestration',
               ...(launch.preferences ? { launchPreferences: launch.preferences } : {}),
               title: `worker-${params.taskId}`,
@@ -201,6 +205,20 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
             })
           }
         }
+        if (nativePreset && preset && worktree) {
+          failedStage = 'session_create'
+          structuredSession = await createFederatedStructuredWorker({
+            runtime,
+            worktreeId: worktree.id,
+            preset,
+            setup,
+            effects,
+            dispatchId: params.dispatchId,
+            launchPreferences: launch.preferences,
+            timeoutMs: readinessTimeoutMs
+          })
+          terminalHandle = structuredSession.identity.handle
+        }
         if (!worktree || !terminalHandle) {
           throw new Error('Federated worker topology did not resolve.')
         }
@@ -212,63 +230,39 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
           setup,
           effects
         }
-        if (persistFederatedSetupSpawnFailure(setupStage)) {
-          failedStage = 'setup_start'
-          throw new Error('Setup terminal failed to start before the gated agent launch.')
-        }
-        persistFederatedReadinessStage(setupStage)
-        failedStage = 'agent_readiness'
-        const wait = await waitForWorkerAgentReady(runtime, terminalHandle, {
-          agent,
-          reusesTerminal: Boolean(params.terminal),
-          timeoutMs: readinessTimeoutMs
-        })
-        persistFederatedSetupWaitOutcome({ ...setupStage, wait })
-        if (!wait.satisfied) {
-          if (setup.state === 'failed') {
-            failedStage = 'setup_wait'
-          }
-          throw new Error(
-            wait.blockedReason
-              ? `Agent startup blocked: ${describeTerminalWaitBlockedReason(wait.blockedReason)}`
-              : `Agent did not become ready (${wait.status}).`
-          )
-        }
-        prepareFederatedAttachmentAuthority({
+        await prepareFederatedWorkerReadiness({
+          ...setupStage,
           runtime,
-          db,
-          dispatchId: params.dispatchId,
-          worktreeId: worktree.id,
-          terminalHandle,
-          setup,
-          effects,
-          reusesTerminal: Boolean(params.terminal)
+          agent,
+          native: Boolean(structuredSession),
+          reusesTerminal: Boolean(params.terminal),
+          timeoutMs: readinessTimeoutMs,
+          onStage: (stage) => {
+            failedStage = stage
+          }
         })
         failedStage = 'dispatch_input'
-        // A shell back at its prompt also reads as ready, so the brief needs the agent found in front.
-        const briefGuard = createWorkerBriefWriteGuard(runtime, agent, !params.terminal)
-        const prompt = await sendAgentTurn({
-          kind: 'terminal',
+        const prompt = await deliverWorkerDispatchPreamble({
           runtime,
-          handle: terminalHandle,
-          ...(briefGuard ? { beforeWrite: briefGuard.beforeWrite } : {}),
-          turn: {
-            purpose: 'dispatch-preamble',
-            operationId: orchestrationMutation.requestId,
-            body: buildDispatchPreamble({
-              taskId: params.taskId,
-              dispatchId: params.dispatchId,
-              taskSpec: params.taskSpec,
-              coordinatorHandle: 'Run home (relayed by Orca)',
-              workerHandle: terminalHandle,
-              devMode: params.devMode,
-              // Why the worker host's own setting: enforcement runs here, with this
-              // host's code, against this host's cap.
-              canDispatchSubWorkers: (params.depth ?? 1) < runtime.getNestedWorkerMaxDepth(),
-              cliCommand: runtime.getTerminalOrchestrationCliCommand(terminalHandle)
-            })
-          }
-        }).finally(() => briefGuard?.dispose())
+          db,
+          structuredSession,
+          terminalHandle,
+          dispatchId: params.dispatchId,
+          dispatchDepth: params.depth ?? 1,
+          runId: params.runId ?? null,
+          taskId: params.taskId,
+          taskSpec: params.taskSpec,
+          coordinatorHandle: 'Run home (relayed by Orca)',
+          devMode: params.devMode,
+          requestId: orchestrationMutation.requestId,
+          launchedAgent: params.terminal ? null : agent
+        })
+        if (prompt.structuredTurnStart?.verdict === 'unobserved') {
+          throw new OrchestrationError(
+            'operation_unknown',
+            prompt.structuredTurnStart.reason ?? 'The Agent session did not accept its task.'
+          )
+        }
         effects.push({
           kind: 'dispatch_input',
           role: 'agent',
@@ -292,6 +286,8 @@ export const ORCHESTRATION_FEDERATION_ATTACH_METHODS = [
         }
       } catch (error) {
         return failFederatedAttachmentWithReceipt({
+          runtime,
+          structuredSession,
           db,
           dispatchId: params.dispatchId,
           runtimeEpoch: runtime.getRuntimeId(),

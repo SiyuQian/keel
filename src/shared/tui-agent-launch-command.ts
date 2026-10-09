@@ -1,3 +1,5 @@
+import type { AgentPreset } from './agent-presets'
+import { agentPresetInstructionArgs } from './agent-preset-instructions'
 import {
   removeOverriddenAgentSessionArgs,
   resolveAgentSessionOptionLaunch
@@ -29,15 +31,25 @@ export function resolveAgentLaunchCommand(args: {
   shell: AgentStartupShell
   agentArgs?: string | null
   sessionOptions?: Record<string, SessionOptionValue>
+  agentPreset?: AgentPreset
   sessionOptionsOverrideAgentArgs?: boolean
   isRemote?: boolean
 }): ResolvedAgentLaunchCommand {
+  if (args.agentPreset && args.shell === 'cmd') {
+    return {
+      ok: false,
+      error: 'Agent preset instructions are unsupported on cmd. Use PowerShell or a native session.'
+    }
+  }
   const override = args.cmdOverrides[args.agent]
-  const command =
+  const baseCommand =
     override ||
     getTuiAgentLaunchCommand(TUI_AGENT_CONFIG[args.agent], args.platform, {
       isRemote: args.isRemote
     })
+  const instructionArgs = agentPresetInstructionArgs(args.agent, args.agentPreset)
+  const instructionSuffix = instructionArgs.map((arg) => quoteStartupArg(arg, args.shell)).join(' ')
+  const command = instructionSuffix ? `${baseCommand} ${instructionSuffix}` : baseCommand
   const suffix = planAgentCliArgsSuffix(args.agentArgs, args.shell)
   if (!suffix.ok) {
     return suffix
@@ -47,6 +59,26 @@ export function resolveAgentLaunchCommand(args: {
     : { ok: true as const, tokens: [], spans: [] }
   if (!trailingTokens.ok) {
     return { ok: false, error: `CLI arguments are invalid: ${trailingTokens.error}` }
+  }
+  if (args.agentPreset) {
+    const overrideTokens = tokenizeStartupCommand(baseCommand, args.shell)
+    if (!overrideTokens.ok) {
+      return { ok: false, error: 'Invalid Agent command override.' }
+    }
+    const tokens = [...overrideTokens.tokens.slice(1), ...trailingTokens.tokens]
+    if (
+      tokens.some((token) =>
+        /^(?:resume$|fork$|--resume(?:=|$)|--continue(?:=|$)|-r(?:=|$)|--system-prompt(?:-file)?(?:=|$)|--append-system-prompt(?:-file)?(?:=|$)|--session-id(?:=|$)|--fork-session(?:=|$)|(?:(?:--config|-c)=)?(?:developer_instructions|base_instructions|experimental_instructions_file)=)/.test(
+          token
+        )
+      )
+    ) {
+      return {
+        ok: false,
+        error:
+          'Agent preset requires a fresh session and conflicts with configured session or instruction arguments.'
+      }
+    }
   }
   const resolvedOptions = resolveAgentSessionOptionLaunch(
     args.agent,

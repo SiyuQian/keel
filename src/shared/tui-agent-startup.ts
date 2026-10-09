@@ -1,3 +1,4 @@
+import type { AgentPreset } from './agent-presets'
 import { withFreshOmpLaunch, isFreshOmpLaunchCommand } from './omp-fresh-launch'
 import { withOmpDraftCleanup } from './omp-draft-launch'
 import { isShellProcess } from './agent-detection'
@@ -34,6 +35,7 @@ export type AgentStartupPlan = {
   /** Values actually emitted into this launch command, kept as base model ids
    * so the native-chat surface can render only launch-backed state. */
   sessionOptions?: Record<string, SessionOptionValue>
+  agentPreset?: AgentPreset
 }
 
 export function buildAgentStartupPlan(args: {
@@ -46,6 +48,7 @@ export function buildAgentStartupPlan(args: {
   agentArgs?: string | null
   agentEnv?: Record<string, string> | null
   sessionOptions?: Record<string, SessionOptionValue>
+  agentPreset?: AgentPreset
   sessionOptionsOverrideAgentArgs?: boolean
   /** Why: SSH remotes deploy the CLI shim as plain `orca`, so the Linux-only
    * `orca-ide` rename must be skipped for remote launches. */
@@ -63,6 +66,7 @@ export function buildAgentStartupPlan(args: {
     shell,
     agentArgs: usesQuery ? null : args.agentArgs,
     sessionOptions: args.sessionOptions,
+    agentPreset: args.agentPreset,
     sessionOptionsOverrideAgentArgs: args.sessionOptionsOverrideAgentArgs,
     isRemote: args.isRemote
   })
@@ -210,6 +214,7 @@ export type AgentDraftLaunchPlan = {
   env?: Record<string, string>
   startupCommandDelivery?: StartupCommandDelivery
   sessionOptions?: Record<string, SessionOptionValue>
+  agentPreset?: AgentPreset
 }
 
 export function buildAgentDraftLaunchPlan(args: {
@@ -221,6 +226,7 @@ export function buildAgentDraftLaunchPlan(args: {
   agentArgs?: string | null
   agentEnv?: Record<string, string> | null
   sessionOptions?: Record<string, SessionOptionValue>
+  agentPreset?: AgentPreset
   sessionOptionsOverrideAgentArgs?: boolean
   /** Why: see buildAgentStartupPlan — remote launches use the plain `orca` shim. */
   isRemote?: boolean
@@ -239,6 +245,7 @@ export function buildAgentDraftLaunchPlan(args: {
     shell,
     agentArgs: args.agentArgs,
     sessionOptions: args.sessionOptions,
+    agentPreset: args.agentPreset,
     sessionOptionsOverrideAgentArgs: args.sessionOptionsOverrideAgentArgs,
     isRemote: args.isRemote
   })

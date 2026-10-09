@@ -1,3 +1,7 @@
+import type { TuiAgent } from '../../../../../../shared/tui-agent'
+import { waitForWorkerAgentReady } from '../../../../launched-agent-composer-readiness'
+import { describeTerminalWaitBlockedReason } from '../../../../../../shared/terminal-wait-blocked-reason-legacy-alias'
+import { prepareFederatedAttachmentAuthority } from './federation-attachment-authority'
 import type { OrcaRuntimeService } from '../../../../orca-runtime'
 import type { OrchestrationDb } from '../../../../orchestration/db'
 import { applyWaitForSetupOutcome, type WorkerSetupReceipt } from '../worker/worker-topology'
@@ -93,4 +97,37 @@ export function monitorFederatedSetup(
       })
     })
     .catch(() => undefined)
+}
+
+export async function prepareFederatedWorkerReadiness(
+  args: FederationSetupStageArgs & {
+    runtime: OrcaRuntimeService
+    native: boolean
+    agent: TuiAgent | undefined
+    reusesTerminal: boolean
+    timeoutMs: number
+    onStage: (stage: string) => void
+  }
+): Promise<void> {
+  if (persistFederatedSetupSpawnFailure(args)) {
+    args.onStage('setup_start')
+    throw new Error('Setup terminal failed to start before the gated agent launch.')
+  }
+  persistFederatedReadinessStage(args)
+  args.onStage('agent_readiness')
+  const wait = args.native
+    ? { satisfied: true, status: 'running', blockedReason: undefined }
+    : await waitForWorkerAgentReady(args.runtime, args.terminalHandle, args)
+  persistFederatedSetupWaitOutcome({ ...args, wait })
+  if (!wait.satisfied) {
+    if (args.setup.state === 'failed') {
+      args.onStage('setup_wait')
+    }
+    throw new Error(
+      wait.blockedReason
+        ? `Agent startup blocked: ${describeTerminalWaitBlockedReason(wait.blockedReason)}`
+        : `Agent did not become ready (${wait.status}).`
+    )
+  }
+  prepareFederatedAttachmentAuthority(args)
 }

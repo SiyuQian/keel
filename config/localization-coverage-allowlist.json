@@ -75,5 +75,12 @@
     "text": "sidebar",
     "dynamic": false,
     "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowAgentBinding.tsx",
+    "kind": "jsx-text",
+    "text": "orca orchestration worker-start --spec &lt;task&gt; --agent-preset",
+    "dynamic": false,
+    "count": 1
   }
 ]

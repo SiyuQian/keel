@@ -1,3 +1,4 @@
+import { assertAgentPresetExecutionRuntime } from './worker-agent-preset'
 /**
  * Where a worker's agent comes from: a worktree this start creates, a structured session, a new
  * terminal in an existing worktree, or the terminal the caller passed.
@@ -133,6 +134,14 @@ async function placeInCreatedWorktree(
     }
   }
   args.onStage('terminal_create')
+  if (args.launchPreferences?.agentPreset) {
+    await assertAgentPresetExecutionRuntime(
+      args.runtime,
+      { worktree: `id:${worktree.id}` },
+      args.launchPreferences.agentPreset.provider,
+      false
+    )
+  }
   const mode = await resolveWorkerStartModeOnHost(args.runtime, args.mode, worktree.id, args.agent)
   return {
     mode,

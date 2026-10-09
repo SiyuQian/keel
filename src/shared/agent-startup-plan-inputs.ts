@@ -1,3 +1,4 @@
+import type { AgentPreset } from './agent-presets'
 import type { GlobalSettings } from './global-settings-types'
 import type { SessionOptionValue } from './native-chat-session-options'
 import type { TuiAgent } from './tui-agent'
@@ -23,6 +24,7 @@ export type AgentStartupPlanInputs = {
   shell: AgentStartupShell | undefined
   isRemote: boolean
   sessionOptions?: Record<string, SessionOptionValue>
+  agentPreset?: AgentPreset
   sessionOptionsOverrideAgentArgs: boolean
 }
 
@@ -45,7 +47,8 @@ export function resolveAgentStartupPlanInputs(args: {
   agentArgs?: string | null
   /** A requested shell is the one this PTY will be, so it owns the quoting family. */
   windowsShellOverride?: string | null
-  sessionOptions?: Record<string, SessionOptionValue> | undefined
+  sessionOptions?: Record<string, SessionOptionValue>
+  agentPreset?: AgentPreset | undefined
 }): AgentStartupPlanInputs {
   const { agent, settings, platform, isRemote, sessionOptions } = args
   return {
@@ -66,6 +69,7 @@ export function resolveAgentStartupPlanInputs(args: {
     }),
     isRemote,
     ...(sessionOptions ? { sessionOptions } : {}),
+    ...(args.agentPreset ? { agentPreset: { ...args.agentPreset } } : {}),
     // Why: session options are an explicit per-launch pick, so they outrank configured args —
     // without this the two spellings of the same flag both reach argv and the last one wins.
     sessionOptionsOverrideAgentArgs: Boolean(sessionOptions)

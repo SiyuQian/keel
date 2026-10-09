@@ -1,3 +1,4 @@
+import { AGENT_PRESETS_CAPABILITY } from '../../../shared/agent-presets'
 import type { CommandHandler } from '../../dispatch'
 import { printResult } from '../../format'
 import { getOptionalStringFlag } from '../../flags'
@@ -13,6 +14,16 @@ import { renderResolvedOrchestrationCommand } from '../../orchestration-mutation
 
 export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler> = {
   'orchestration worker-start': async ({ flags, client, cwd, json }) => {
+    const agentPreset = getOptionalStringFlag(flags, 'agent-preset')
+    if (agentPreset) {
+      const status = await client.call<RuntimeStatus>('status.get')
+      if (!status.result.capabilities?.includes(AGENT_PRESETS_CAPABILITY)) {
+        throw new RuntimeClientError(
+          'incompatible_runtime',
+          'The connected runtime does not support Agent presets. Update the execution host.'
+        )
+      }
+    }
     const model = getOptionalStringFlag(flags, 'model')
     const effort = getOptionalStringFlag(flags, 'effort')
     if (model || effort) {
@@ -62,6 +73,7 @@ export const ORCHESTRATION_WORKER_LAUNCH_HANDLER: Record<string, CommandHandler>
       agent: getOptionalStringFlag(flags, 'agent'),
       model,
       effort,
+      ...(agentPreset ? { agentPreset } : {}),
       terminal: getOptionalStringFlag(flags, 'terminal'),
       retryOf: getOptionalStringFlag(flags, 'retry-of'),
       timeoutMs: getOptionalPositiveIntegerValueFlag(flags, 'timeout-ms'),

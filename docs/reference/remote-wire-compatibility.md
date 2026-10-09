@@ -395,3 +395,11 @@ refuse by authorization must not be widened.
 
 The cross-version harness dispatches as a mobile client but calls the dispatcher directly, so
 it never runs this gate and nothing reddens if any of the above is forgotten.
+
+## Agent preset launch negotiation
+
+`agent-presets-v1` gates host-owned Agent settings and the `agentPreset` selector on worker-start and federation attachment. Old schemas can discard optional launch fields, so clients must check this capability before mutation. A paired worker resolves the selector against its own settings, then returns the selected snapshot in its launch receipt. A ready receipt without that snapshot is an unknown launch outcome.
+
+The optional `agentPreset` session record stores bounded instructions outside the short options map. It participates in attach fingerprints only when present. Raw launches preserve their prior records and fingerprints. Claude uses the appended system preset channel. Codex uses thread `developerInstructions` and per-thread effort configuration. These additions use existing JSON requests and require no stream opcode.
+
+See [Agent presets and workflow bindings](agent-presets-workflows.md) for owning-host routes and coordinator usage.

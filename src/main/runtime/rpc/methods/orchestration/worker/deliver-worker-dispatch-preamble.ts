@@ -38,7 +38,7 @@ export async function deliverWorkerDispatchPreamble(args: {
   terminalHandle: string
   dispatchId: string
   dispatchDepth: number
-  runId: string
+  runId: string | null
   taskId: string
   taskSpec: string
   coordinatorHandle: string
@@ -144,10 +144,13 @@ function workerTaskSource(args: {
   runtime: OrcaRuntimeService
   db: OrchestrationDb
   dispatchId: string
-  runId: string
+  runId: string | null
   taskId: string
   coordinatorHandle: string
 }): AgentMessageSource {
+  if (args.runId === null) {
+    return { kind: 'agent', senders: [], orchestration: null }
+  }
   return dispatchTaskSource({
     db: args.db,
     dispatch: { id: args.dispatchId, run_id: args.runId, task_id: args.taskId },

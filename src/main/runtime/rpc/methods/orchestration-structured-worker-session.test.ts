@@ -55,6 +55,40 @@ describe('structured worker session', () => {
     }))
   })
 
+  it('gives concurrent role stages separate session and process identities without mutating their snapshots', async () => {
+    installHost()
+    const role = {
+      id: 'review',
+      name: 'Review',
+      provider: 'codex' as const,
+      systemInstructions: 'Review the change.'
+    }
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the worker factory uses only this host installation port.
+    const runtime = { ensureStructuredAgentSessionHost: async () => {} } as never
+    const [first, second] = await Promise.all(
+      ['role_dispatch_1', 'role_dispatch_2'].map((dispatchId) =>
+        createStructuredWorkerSession({
+          runtime,
+          worktreeId: 'wt_1',
+          agent: 'codex',
+          dispatchId,
+          agentPreset: role,
+          onJournalActivity: () => {}
+        })
+      )
+    )
+    role.systemInstructions = 'Edited after launch.'
+    expect(first.identity.sessionId).not.toBe(second.identity.sessionId)
+    expect(first.identity.handle).not.toBe(second.identity.handle)
+    expect(first.identity.processIncarnation).not.toBe(second.identity.processIncarnation)
+    expect(createSpy.mock.calls.map(([args]) => args.agentPreset.systemInstructions)).toEqual([
+      'Review the change.',
+      'Review the change.'
+    ])
+    releaseStructuredWorkerSession('role_dispatch_1')
+    releaseStructuredWorkerSession('role_dispatch_2')
+  })
+
   it('binds only a redrive subscription at start, and settlement drops it', async () => {
     const { subscribe, dispose } = installHost()
     const created = await createStructuredWorkerSession({

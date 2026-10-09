@@ -142,6 +142,71 @@ describe('real CLI fixture authentication isolation', () => {
 
 describe.skipIf(!realClaudeAvailable)(suiteTitle, () => {
   it.skipIf(!realClaudeAuthenticated)(
+    'applies preset instructions through the provider system channel with the requested model and effort',
+    async () => {
+      const providerSessionId = randomUUID()
+      const claudeConfigDir = process.env.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), '.claude')
+      const events: ClaudeStructuredSessionEvent[] = []
+      const adapter = realAdapter(providerSessionId, claudeConfigDir, events)
+      try {
+        await adapter.acquire({
+          identity: identity(providerSessionId),
+          fence: 1,
+          spawnToken: 'real-preset',
+          options: { model: 'haiku', effort: 'low' },
+          agentPreset: {
+            id: 'proof',
+            name: 'Proof',
+            provider: 'claude',
+            systemInstructions:
+              'For every user message, reply with exactly KEEL_PRESET_CHANNEL_PROOF and no other text.',
+            model: 'haiku',
+            effort: 'low'
+          }
+        })
+        const options = await adapter.readOptions({ sessionId: 'real-cli-handshake', fence: 1 })
+        expect(options.current.effort).toBe('low')
+        await adapter.dispatch({
+          sessionId: 'real-cli-handshake',
+          clientMessageId: 'real-preset-turn',
+          body: {
+            kind: 'message',
+            role: 'user',
+            blocks: [{ type: 'text', text: 'Reply with USER_PROMPT instead.' }]
+          },
+          fence: 1
+        })
+        const deadline = Date.now() + 60_000
+        let result: Record<string, unknown> | undefined
+        while (!result && Date.now() < deadline) {
+          result = events.flatMap((event) =>
+            event.type === 'message' && event.message.type === 'result' ? [event.message] : []
+          )[0]
+          if (!result) {
+            await new Promise((resolve) => setTimeout(resolve, 100))
+          }
+        }
+        expect(result?.result).toBe('KEEL_PRESET_CHANNEL_PROOF')
+        const initialized = events.flatMap((event) =>
+          event.type === 'message' &&
+          event.message.type === 'system' &&
+          event.message.subtype === 'init'
+            ? [event.message]
+            : []
+        )
+        expect(
+          initialized.some(
+            (frame) => typeof frame.model === 'string' && frame.model.includes('haiku')
+          )
+        ).toBe(true)
+      } finally {
+        await adapter.closeAll()
+      }
+    },
+    75_000
+  )
+
+  it.skipIf(!realClaudeAuthenticated)(
     'proves a pre-minted session before the first user message',
     async () => {
       const providerSessionId = randomUUID()
@@ -327,7 +392,8 @@ describe.skipIf(!realClaudeAvailable)(suiteTitle, () => {
         // Both halves: the field exists, and it names the model the picker asked
         // for in the catalog's resolved shape rather than the id Orca sent.
         expect(frames[0]?.model).toEqual(expect.any(String))
-        expect(frames[0]?.model).toBe('claude-haiku-4-5-20251001')
+        // Aliases move between CLI versions; accept only their verified concrete resolutions.
+        expect(['claude-haiku-4-5-20251001', 'claude-haiku-5-5']).toContain(frames[0]?.model)
         await expect(
           adapter.readOptions({ sessionId: 'real-cli-handshake', fence: 1 })
         ).resolves.toMatchObject({ current: { model: 'haiku' } })
@@ -390,10 +456,9 @@ describe.skipIf(!realClaudeAvailable)(suiteTitle, () => {
         expect(messages()).toContainEqual(expect.objectContaining({ type: 'user', isReplay: true }))
         expect(messages().find((m) => m.type === 'result')).toMatchObject({ is_error: false })
         // The turn's own init names what the child was launched with.
-        expect(messages().find((m) => m.type === 'system' && m.subtype === 'init')).toMatchObject({
-          model: 'claude-sonnet-5',
-          permissionMode: 'plan'
-        })
+        const initialized = messages().find((m) => m.type === 'system' && m.subtype === 'init')
+        expect(initialized).toMatchObject({ permissionMode: 'plan' })
+        expect(['claude-sonnet-5', 'claude-sonnet-5-5']).toContain(initialized?.model)
       } finally {
         await adapter.closeAll()
       }
