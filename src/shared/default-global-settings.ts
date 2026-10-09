@@ -245,6 +245,7 @@ export function buildDefaultSettings(args: {
     mobilePairingCustomAddresses: [],
     machineName: '',
     // Why: off keeps the cosmetic overlay unmounted for users who never opt in.
+    experimentalCodeIntelligence: false,
     experimentalPet: false,
     experimentalActivity: false,
     experimentalActivityDefaultedOffForAllUsers: true,

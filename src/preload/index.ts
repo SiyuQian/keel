@@ -1,3 +1,4 @@
+import { codeIntelApi } from './api/code-intel-bridge'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { PreloadApi } from './api-types'
 import {
@@ -102,6 +103,7 @@ const telemetryGetConsentStateApi: PreloadApi['telemetryGetConsentState'] = () =
 
 const api = {
   app: appApi,
+  codeIntel: codeIntelApi,
   orcaProfiles: orcaProfilesApi,
   platform: platformApi,
   wsl: wslApi,

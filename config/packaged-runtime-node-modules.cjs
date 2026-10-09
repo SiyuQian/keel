@@ -28,6 +28,7 @@ const PACKAGED_RUNTIME_PACKAGE_ROOTS = [
   'qrcode',
   'ssh2',
   'tweetnacl',
+  'typescript-api',
   'ws',
   'yaml',
   'zod'
@@ -129,7 +130,8 @@ function readPackage(packageName, fromDir = projectDir) {
   const packageDir = realpathSync(dirname(packageJsonPath))
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'))
   return {
-    name: packageJson.name ?? packageName,
+    // The alias must match the worker's require('typescript-api') at runtime.
+    name: packageName === 'typescript-api' ? packageName : (packageJson.name ?? packageName),
     packageDir,
     dependencies: Object.keys(packageJson.dependencies ?? {})
   }
@@ -490,7 +492,16 @@ function prunePackagedRuntimeTypeAndSourceMapArtifacts(resourcesDir) {
   if (!existsSync(nodeModulesDir)) {
     return
   }
-  pruneMatchingFiles(nodeModulesDir, isPrunableTypeOrSourceMapArtifact)
+  pruneMatchingFiles(nodeModulesDir, (filename, entryPath) => {
+    // Standard library declarations are runtime input for semantic navigation.
+    if (
+      dirname(entryPath) === join(nodeModulesDir, 'typescript-api', 'lib') &&
+      /^lib(?:\.[\w.]+)?\.d\.ts$/.test(filename)
+    ) {
+      return false
+    }
+    return isPrunableTypeOrSourceMapArtifact(filename)
+  })
 }
 
 function prunePackagedSherpaOnnx(resourcesDir, electronPlatformName) {
@@ -608,7 +619,7 @@ function pruneMatchingFiles(directory, shouldPrune) {
     const entryPath = join(directory, entry.name)
     if (entry.isDirectory()) {
       pruneMatchingFiles(entryPath, shouldPrune)
-    } else if (entry.isFile() && shouldPrune(entry.name)) {
+    } else if (entry.isFile() && shouldPrune(entry.name, entryPath)) {
       rmSync(entryPath, { force: true })
     }
   }

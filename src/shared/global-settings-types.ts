@@ -469,6 +469,7 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   machineName: string
   /** Experimental: floating animated pet in the bottom-right corner. Opt-in cosmetic;
    *  off never mounts the overlay, and toggling takes effect instantly (renderer-side). */
+  experimentalCodeIntelligence?: boolean
   experimentalPet: boolean
   /** Legacy persisted key from before the sidekick -> pet rename; read only during migration, new writes use experimentalPet. */
   experimentalSidekick?: boolean

@@ -211,6 +211,13 @@ describe('CLI and worker thread entry guard', () => {
     return scans
   }
 
+  it('rejects Electron imports in the semantic navigation worker', () => {
+    const entry = entryChunk('code-intel-worker-entry', 'require("electron")')
+    expect(() =>
+      runEntryWriteBundle(createPlainNodeEntryGuardPlugin(), { [entry.fileName]: entry })
+    ).toThrow('requires electron')
+  })
+
   it('scans shared code once across every guarded entry', () => {
     const shared = entryChunk('shared', 'require("node:fs")')
     shared.isEntry = false

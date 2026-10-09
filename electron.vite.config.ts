@@ -255,6 +255,7 @@ export const electronViteConfig: UserConfig = {
           // Why: the Claude/Codex/OpenCode usage scans walk whole history
           // corpora and read SQLite synchronously; a worker thread keeps that
           // off the main-process event loop.
+          'code-intel-worker-entry': resolve('src/main/code-intel/sidecar-entry.ts'),
           'usage-scan-worker-entry': resolve('src/main/usage/usage-scan-worker-entry.ts'),
           // Why: a first account setup can merge a large history tree with sync fs calls.
           'claude-profile-setup-worker-entry': resolve(

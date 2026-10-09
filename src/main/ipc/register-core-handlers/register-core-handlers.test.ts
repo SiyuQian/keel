@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+vi.mock('../code-intel', () => ({ registerCodeIntelHandlers: vi.fn() }))
 
 const {
   getPathMock,
