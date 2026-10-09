@@ -1,3 +1,4 @@
+import type { AgentPreset } from '../../../../shared/agent-presets'
 /**
  * Creating a structured session for a worktree: resolve the create intent, attach it under the
  * host-computed fingerprint, then publish its tab.
@@ -82,6 +83,7 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
    *  `--model`/`--effort` the dispatch asked for; a chat the user opened passes nothing and keeps
    *  the saved selection. Narrowed by the caller, so `{}` never reaches the reservation. */
   options?: Readonly<Record<string, string>>
+  agentPreset?: AgentPreset
   /** The tab id the caller reserved for this chat, taken when its tab is published; absent, the tab
    *  gets the id clients derive. Beside `options`, after the fingerprint, likewise. */
   tabId?: string
@@ -98,7 +100,11 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
   const hostFingerprint = computeAgentSessionPayloadFingerprint({
     method: 'agentSession.attach',
     sessionId: args.envelope.sessionId,
-    fields: attachFingerprintFields({ ...resolved, envelope: args.envelope })
+    fields: attachFingerprintFields({
+      ...resolved,
+      ...(args.agentPreset ? { agentPreset: args.agentPreset } : {}),
+      envelope: args.envelope
+    })
   })
   host ??= await args.ensureHost()
   const {
@@ -107,6 +113,9 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
     hostLaunchDirectory,
     ...resolvedAttach
   } = resolved
+  if (args.agentPreset) {
+    delete resolvedAttach.options
+  }
   return {
     host,
     ...(hostLaunchDirectory ? { hostLaunchDirectory } : {}),
@@ -115,6 +124,7 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
       // After the fingerprint, deliberately: `attachFingerprintFields` excludes options because
       // they are the session's initial state, not its identity, so a retry that re-resolves them
       // must replay rather than conflict.
+      ...(args.agentPreset ? { agentPreset: { ...args.agentPreset } } : {}),
       ...(args.options ? { options: args.options } : {}),
       ...(args.tabId ? { surfaceTabId: args.tabId } : {}),
       provider: resolved.provider,
@@ -182,6 +192,7 @@ export async function createStructuredAgentSessionForWorktree(args: {
   agent: StructuredAgentId
   activate: boolean
   options?: Readonly<Record<string, string>>
+  agentPreset?: AgentPreset
   tabId?: string
 }): Promise<AgentSessionMutationResult<AgentSessionAttachResult>> {
   const prepared: PreparedStructuredAgentSessionCreate | StructuredCreateRefused =

@@ -122,3 +122,14 @@ export type SessionOptionsSurface = {
   invokeAction(id: string): Promise<SessionOptionSetResult>
   subscribe(listener: (snapshot: SessionOptionDescriptor[]) => void): () => void
 }
+
+/** Durable provider options are short values. Role instructions have a separate snapshot. */
+export function isAgentSessionOptions(value: unknown): value is Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false
+  }
+  const entries = Object.entries(value)
+  const bounded = (item: unknown): item is string =>
+    typeof item === 'string' && item.length > 0 && item.length <= 512
+  return entries.length <= 32 && entries.every(([key, option]) => bounded(key) && bounded(option))
+}

@@ -23,7 +23,14 @@ describe('orchestration worker launch preferences', () => {
         effective: { agent: 'omp', model, effort: null }
       }
     })
-    expect(resolveAgentSessionOptionLaunch('omp', launch.preferences, [], false)).toEqual({
+    expect(
+      resolveAgentSessionOptionLaunch(
+        'omp',
+        launch.preferences ? { model: launch.preferences.model ?? '' } : undefined,
+        [],
+        false
+      )
+    ).toEqual({
       args: ['--model', model],
       appliedValues: { model }
     })

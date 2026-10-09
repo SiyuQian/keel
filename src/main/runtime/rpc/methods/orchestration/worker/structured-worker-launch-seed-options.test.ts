@@ -102,3 +102,92 @@ describe('the create the seed options land in', () => {
     expect(seeded.envelope.payloadFingerprint).toBe(unseeded.envelope.payloadFingerprint)
   })
 })
+
+it('a default-only preset does not choose the native chat saved model or effort', async () => {
+  const prepared = await prepareStructuredAgentSessionCreateForWorktree({
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: this prepare path calls only the supplied create-intent resolver.
+    runtime: {
+      resolveStructuredAgentSessionCreateIntent: async () => ({
+        location: { executionHostId: 'local', wslDistro: null, workspaceId: 'repo::wt' },
+        provider: 'codex',
+        agent: 'codex',
+        accountHome: { variable: 'CODEX_HOME', path: '/host/.codex' },
+        runtimeKind: 'native',
+        options: { model: 'saved-unrequested-model', effort: 'high' }
+      })
+    } as never,
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: prepare returns the installed host without using it; commit is not called.
+    ensureHost: async () => ({}) as never,
+    envelope: {
+      sessionId: 'preset_session_1',
+      clientOperationId: 'op_1',
+      expectedRuntimeFence: null,
+      payloadFingerprint: ''
+    },
+    worktree: 'id:repo::wt',
+    agent: 'codex',
+    caller: { callerKey: 'dispatch:1' },
+    agentPreset: { id: 'role', name: 'Role', provider: 'codex', systemInstructions: 'Review.' }
+  })
+  expect(prepared.attachParams).not.toHaveProperty('options')
+  expect(prepared.attachParams.agentPreset?.systemInstructions).toBe('Review.')
+})
+
+it('includes a role snapshot in replay identity while leaving raw launches unchanged', async () => {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: prepare only reads this resolver; commit is not called.
+  const runtime = {
+    resolveStructuredAgentSessionCreateIntent: async () => ({
+      location: { executionHostId: 'local', wslDistro: null, workspaceId: 'wt' },
+      provider: 'codex',
+      agent: 'codex',
+      accountHome: { variable: 'CODEX_HOME', path: '/host/.codex' },
+      runtimeKind: 'native'
+    })
+  } as never
+  async function prepare(instructions?: string) {
+    return prepareStructuredAgentSessionCreateForWorktree({
+      runtime,
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: prepare does not call any host methods.
+      ensureHost: async () => ({}) as never,
+      envelope: {
+        sessionId: 'replay_session',
+        clientOperationId: 'op_1',
+        expectedRuntimeFence: null,
+        payloadFingerprint: ''
+      },
+      worktree: 'id:wt',
+      agent: 'codex',
+      caller: { callerKey: 'dispatch:1' },
+      ...(instructions === undefined
+        ? {}
+        : {
+            agentPreset: {
+              id: 'role',
+              name: 'Role',
+              provider: 'codex' as const,
+              systemInstructions: instructions
+            }
+          })
+    })
+  }
+  const [raw, sameRaw, first, same, changed] = await Promise.all([
+    prepare(),
+    prepare(),
+    prepare('Review.'),
+    prepare('Review.'),
+    prepare('Implement.')
+  ])
+  expect(raw.attachParams).not.toHaveProperty('agentPreset')
+  expect(raw.attachParams.envelope.payloadFingerprint).toBe(
+    sameRaw.attachParams.envelope.payloadFingerprint
+  )
+  expect(first.attachParams.envelope.payloadFingerprint).toBe(
+    same.attachParams.envelope.payloadFingerprint
+  )
+  expect(first.attachParams.envelope.payloadFingerprint).not.toBe(
+    changed.attachParams.envelope.payloadFingerprint
+  )
+  expect(first.attachParams.envelope.payloadFingerprint).not.toBe(
+    raw.attachParams.envelope.payloadFingerprint
+  )
+})

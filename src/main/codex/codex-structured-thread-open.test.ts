@@ -359,3 +359,35 @@ describe('openCodexThread', () => {
     })
   })
 })
+
+it('applies fixed effort and appended role instructions through thread startup without changing permissions', async () => {
+  const request = vi.fn(async (_method: string, _params?: Record<string, unknown>) => ({
+    thread: { id: 'fresh-role-thread' }
+  }))
+  await openCodexThread(
+    connectionFor(request),
+    {
+      cwd: '/workspace',
+      resumeThreadId: null,
+      model: 'gpt-5.6-sol',
+      agentPreset: {
+        id: 'review',
+        name: 'Review',
+        provider: 'codex',
+        systemInstructions: 'Review correctness.',
+        effort: 'high',
+        model: 'gpt-5.6-sol'
+      },
+      permissionPolicy: { approvalPolicy: 'on-request', sandbox: 'workspace-write' }
+    },
+    2000
+  )
+  expect(request.mock.calls[0]?.[1]).toEqual({
+    cwd: '/workspace',
+    model: 'gpt-5.6-sol',
+    config: { model_reasoning_effort: 'high' },
+    developerInstructions: 'Review correctness.',
+    approvalPolicy: 'on-request',
+    sandbox: 'workspace-write'
+  })
+})

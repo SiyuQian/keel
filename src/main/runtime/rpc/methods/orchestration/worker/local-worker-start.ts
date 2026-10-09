@@ -1,5 +1,6 @@
+import { prepareAgentPresetWorkerMode } from './worker-agent-preset'
 import { probeWorkerOpenCodeModelLaunchSupport } from './worker-opencode-model-preflight'
-import { resolveWorkerConfiguredAgentParams } from './worker-configured-agent-preflight'
+import { resolveLocalWorkerConfiguredAgentParams } from './worker-configured-agent-preflight'
 import { waitForWorkerAgentReady } from '../../../../launched-agent-composer-readiness'
 import type { OrcaRuntimeService } from '../../../../orca-runtime'
 import { describeTerminalWaitBlockedReason } from '../../../../../../shared/terminal-wait-blocked-reason-legacy-alias'
@@ -63,21 +64,7 @@ export async function startLocalWorker(args: {
   const coordinatorPane = coordinator?.paneKey ?? null
   const requestedWorktree = params.worktree ?? 'current'
   const createsWorktree = requestedWorktree === 'new-child' || requestedWorktree === 'new-top-level'
-  const launchParams = await resolveWorkerConfiguredAgentParams(runtime, params, async () => {
-    const callerWorkspaceId = await resolveDispatchCallerWorktreeId(
-      runtime,
-      params.from,
-      callerSession
-    )
-    const parent = createsWorktree
-      ? await runtime.showManagedWorktree(`id:${callerWorkspaceId}`)
-      : undefined
-    return createsWorktree
-      ? { repo: params.repo ?? parent?.repoId }
-      : {
-          worktree: requestedWorktree === 'current' ? `id:${callerWorkspaceId}` : requestedWorktree
-        }
-  })
+  const launchParams = await resolveLocalWorkerConfiguredAgentParams(runtime, params, callerSession)
   let openCodeModelLaunchSupported = false
   if (!createsWorktree && launchParams.agent === 'opencode' && launchParams.model) {
     const callerWorkspaceId = await resolveDispatchCallerWorktreeId(
@@ -129,7 +116,15 @@ export async function startLocalWorker(args: {
       resolvedWorktreeId: resolvedWorktree?.id
     })
   }
-  const hostMode = resolveWorkerStartModeOnHost(runtime, args.mode, resolvedWorktree?.id, agent)
+  const requestedMode = await prepareAgentPresetWorkerMode({
+    runtime,
+    preset: launch.preferences?.agentPreset,
+    fallback: args.mode,
+    target: createsWorktree
+      ? { repo: params.repo ?? creationWorktree?.repoId }
+      : { worktree: resolvedWorktree ? `id:${resolvedWorktree.id}` : undefined }
+  })
+  const hostMode = resolveWorkerStartModeOnHost(runtime, requestedMode, resolvedWorktree?.id, agent)
   let mode = chatWorkerMode(await hostMode, chat)
 
   const startOptions = {

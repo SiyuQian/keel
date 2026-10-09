@@ -385,3 +385,19 @@ orca agent hooks off --json
 - Read terminal state before sending input unless the next input is obvious.
 - Use worktree comments for progress checkpoints. See [Worktree checkpoints](/docs/cli/worktree-checkpoints).
 - Use [Orchestration](/docs/cli/orchestration) for tracked multi-agent dispatches instead of ad hoc terminal prompts.
+
+## Agent roles and workflow steps
+
+Configure reusable roles under **Skills → Workflows → Manage Agents**. Each role pins Claude or Codex, system instructions, and optional fixed model and effort. Unset fields use provider defaults. Workflow steps inherit their workflow's default role unless you select an override.
+
+```sh
+orca agents list --json
+orca agents workflows --json
+orca agents resolve --workflow '<workflow ID>' --step implement --json
+orca agents show --id implementation --json
+orca orchestration worker-start --from '<coordinator>' --spec '<task and preceding results>' --agent-preset implementation --json
+```
+
+Use the resolver's `agentPresetId` for each launch. A deleted role refuses resolution. The coordinator supplies preceding results and starts a fresh independent session for every configured stage. These commands do not schedule workflows or select models automatically.
+
+`--agent-preset` cannot combine with `--terminal`, `--agent`, `--model` or `--effort`. Definitions belong to the selected runtime. For paired servers, launch with `worker-start --on <server>` and an exact remote workspace. Old runtimes and desktop proxy SSH/WSL routes refuse presets.

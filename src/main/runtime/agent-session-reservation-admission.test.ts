@@ -263,3 +263,38 @@ describe('re-create over a failed create', () => {
     }
   })
 })
+
+describe('role instruction snapshots', () => {
+  const role = {
+    id: 'review',
+    name: 'Review',
+    provider: 'claude' as const,
+    systemInstructions: 'x'.repeat(2000)
+  }
+  it('persists a detached role snapshot beside short options', () => {
+    const request = reserveRequest({ agentPreset: role, options: { model: 'opus' } })
+    const { record } = applyAgentSessionReservation(storeState(), request, LEASE_TTL_MS)
+    role.name = 'Edited after launch'
+    expect(record.agentPreset?.name).toBe('Review')
+    expect(record.agentPreset?.systemInstructions.length).toBe(2000)
+    expect(record.options).toEqual({ model: 'opus' })
+  })
+  it('rejects oversized instructions before reserving an owner', () => {
+    expect(() =>
+      applyAgentSessionReservation(
+        storeState(),
+        reserveRequest({ agentPreset: { ...role, systemInstructions: 'x'.repeat(17000) } }),
+        LEASE_TTL_MS
+      )
+    ).toThrow('agent_session_preset_invalid')
+  })
+  it('rejects a role from a different provider', () => {
+    expect(() =>
+      applyAgentSessionReservation(
+        storeState(),
+        reserveRequest({ agentPreset: { ...role, provider: 'codex' } }),
+        LEASE_TTL_MS
+      )
+    ).toThrow('agent_session_preset_invalid')
+  })
+})

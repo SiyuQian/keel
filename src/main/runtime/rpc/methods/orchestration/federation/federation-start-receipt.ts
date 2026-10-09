@@ -1,9 +1,18 @@
+import type { OrcaRuntimeService } from '../../../../orca-runtime'
+import type {
+  createStructuredWorkerSessionForWorktree,
+  WorkerSetupReceipt
+} from '../worker/worker-topology'
+import { tearDownFailedWorkerStart } from '../worker/failed-worker-start-teardown'
+import { OrchestrationError } from '../../../../orchestration/orchestration-error'
+import type { parseRemoteFederatedWorkerStartReceipt } from './federated-attach-receipt'
 import type { OrchestrationDb } from '../../../../orchestration/db'
 import { isFederationEffectUnknown } from './federation-effects'
-import type { WorkerSetupReceipt } from '../worker/worker-topology'
 import type { OrchestrationWorkerLaunchReceipt } from '../worker/worker-launch-preferences'
 
-export function failFederatedAttachmentWithReceipt(args: {
+export async function failFederatedAttachmentWithReceipt(args: {
+  runtime: OrcaRuntimeService
+  structuredSession: Awaited<ReturnType<typeof createStructuredWorkerSessionForWorktree>> | null
   db: OrchestrationDb
   dispatchId: string
   runtimeEpoch: string
@@ -11,9 +20,12 @@ export function failFederatedAttachmentWithReceipt(args: {
   error: unknown
   setup: WorkerSetupReceipt
   launch: OrchestrationWorkerLaunchReceipt
-}): unknown {
+}): Promise<unknown> {
   const reason = args.error instanceof Error ? args.error.message : String(args.error)
   const unknown = isFederationEffectUnknown(args.error, args.failedStage)
+  if (!unknown) {
+    await tearDownFailedWorkerStart(args)
+  }
   const attachment = args.db.failRemoteAttachment(
     args.dispatchId,
     args.failedStage,
@@ -31,5 +43,17 @@ export function failFederatedAttachmentWithReceipt(args: {
     launch: args.launch,
     effects: JSON.parse(attachment.effects) as unknown[],
     residualResources: JSON.parse(attachment.residual_resources) as unknown[]
+  }
+}
+
+export function assertRemoteAgentPresetConfirmed(
+  id: string | undefined,
+  remote: ReturnType<typeof parseRemoteFederatedWorkerStartReceipt>
+): void {
+  if (id && remote.state === 'ready' && remote.launch?.effective?.agentPreset?.id !== id) {
+    throw new OrchestrationError(
+      'operation_unknown',
+      'The execution runtime did not confirm the selected Agent preset.'
+    )
   }
 }

@@ -1,3 +1,4 @@
+import type { AgentPreset } from '../../../../shared/agent-presets'
 /**
  * Starting and retiring a worker that IS a structured agent session.
  *
@@ -83,6 +84,7 @@ export async function createStructuredWorkerSession(args: {
   dispatchId: string
   /** The dispatch's own `--model`/`--effort`, already narrowed to the seedable string subset. */
   options?: Readonly<Record<string, string>>
+  agentPreset?: AgentPreset
   /** Retried whenever the session's journal moves, which is the structured idle edge. */
   onJournalActivity: (sessionId: string) => void
 }): Promise<{ identity: StructuredWorkerIdentity; host: StructuredAgentSessionHost }> {
@@ -124,6 +126,7 @@ export async function createStructuredWorkerSession(args: {
       worktree: `id:${args.worktreeId}`,
       agent: args.agent,
       // Absent, the host seeds the user's saved selection — the same fallback a chat gets.
+      ...(args.agentPreset ? { agentPreset: { ...args.agentPreset } } : {}),
       ...(args.options ? { options: args.options } : {}),
       // Dispatching a worker is background work; it must not pull the surface away from the user.
       activate: false

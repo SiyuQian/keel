@@ -1,4 +1,5 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
+import type { Repo } from '../../shared/repo-types'
 import { OrcaRuntimeWithVerifyOrchestrationCompatibilityCaller } from './orca-runtime-verify-orchestration-compatibility-caller'
 import type { OrchestrationCompatibilityTerminalAuthority } from './runtime-terminal-contracts'
 import { createHash } from 'node:crypto'
@@ -12,7 +13,10 @@ import { isValidTerminalTabId } from '../../shared/terminal-tab-id'
 import { RECENT_PTY_OUTPUT_LIMIT, RecentPtyOutputBuffer } from './recent-pty-output-buffer'
 import { appendRecentPtyPathCandidates } from './terminal-output-path-candidates'
 import type { ProjectExecutionRuntimeResolution } from '../../shared/project-execution-runtime'
-import { resolveLocalProjectRuntimeForWorktreeId } from '../local-project-runtime-resolution'
+import {
+  resolveLocalProjectRuntimeForRepo,
+  resolveLocalProjectRuntimeForWorktreeId
+} from '../local-project-runtime-resolution'
 import type { RuntimePtyWorktreeRecord } from './runtime-terminal-state-records'
 import {
   localOrchestrationCliCommand,
@@ -246,6 +250,10 @@ export class OrcaRuntimeWithGetOrchestrationDispatchAuthority extends OrcaRuntim
     return this.store && worktreeId
       ? resolveLocalProjectRuntimeForWorktreeId(this.requireStore(), worktreeId)
       : undefined
+  }
+
+  resolveProjectRuntimeForRepo(repo: Repo): ProjectExecutionRuntimeResolution | undefined {
+    return this.store ? resolveLocalProjectRuntimeForRepo(this.requireStore(), repo) : undefined
   }
 
   getOrchestrationFleetAgentStatusSnapshot(): readonly FleetAgentStatusEvidence[] {

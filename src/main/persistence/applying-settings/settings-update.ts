@@ -1,3 +1,4 @@
+import { AgentPresetsSchema, WorkflowAgentBindingsSchema } from '../../../shared/agent-presets'
 import { normalizeNativeChatAppearanceSettings } from '../../../shared/native-chat-appearance-settings'
 import type { GlobalSettings } from '../../../shared/global-settings-types'
 import { normalizeDisabledTuiAgents } from '../../../shared/tui-agent-selection'
@@ -57,6 +58,12 @@ export function updateSettings(
   updates: Partial<GlobalSettings>,
   options: { notifyListeners?: boolean; originWebContentsId?: number } = {}
 ): GlobalSettings {
+  if (updates.agentPresets !== undefined) {
+    AgentPresetsSchema.parse(updates.agentPresets)
+  }
+  if (updates.workflowAgentBindings !== undefined) {
+    WorkflowAgentBindingsSchema.parse(updates.workflowAgentBindings)
+  }
   const sanitizedUpdates = stripRetiredGlobalSettings(updates)
   if ('opencodeSessionCookie' in updates && !updates.opencodeSessionCookie) {
     operations.removeRetainedBlob(PROTECTED_SECRET_SLOT.opencodeSessionCookie)

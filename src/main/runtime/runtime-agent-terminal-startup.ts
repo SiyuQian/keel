@@ -1,3 +1,4 @@
+import { assertAgentPresetTerminalLine } from '../../shared/agent-preset-instructions'
 import type { SessionOptionValue } from '../../shared/native-chat-session-options'
 import type { RuntimeStore } from './runtime-store-contract'
 import type { TerminalWorkspaceLaunchScope } from './runtime-legacy-worker-terminal-recovery-types'
@@ -54,6 +55,7 @@ export async function buildRuntimeAgentTerminalStartupOptions(
       ...(opts.agentArgs !== undefined ? { agentArgs: opts.agentArgs } : {}),
       // A requested shell is the one this PTY will actually be, so it owns the quoting family.
       windowsShellOverride: opts.shellOverride,
+      agentPreset: opts.launchPreferences?.agentPreset,
       sessionOptions: sessionOptions
     }),
     prompt: opts.startupPrompt ?? '',
@@ -77,6 +79,9 @@ export async function buildRuntimeAgentTerminalStartupOptions(
       throw new Error(`Could not build launch command for ${opts.startupAgent}.`)
     }
     return opts
+  }
+  if (opts.launchPreferences?.agentPreset) {
+    assertAgentPresetTerminalLine(platform, startupPlan.launchCommand)
   }
   if (opts.startupPrompt) {
     opts.onStartupPromptCarry?.(promptCarried)

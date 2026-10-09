@@ -209,3 +209,16 @@ function sourceChanged(): OrchestrationError {
     'The worker output source changed. Start a fresh worker-read without the old cursor.'
   )
 }
+
+export function projectArchivedOutputLiveness<
+  T extends { status: { terminal: string; liveness: string } }
+>(output: T, liveness: 'live' | 'unverifiable' | 'exited'): T {
+  return {
+    ...output,
+    status: {
+      ...output.status,
+      terminal: liveness === 'live' ? 'running' : liveness === 'exited' ? 'exited' : 'unknown',
+      liveness
+    }
+  }
+}

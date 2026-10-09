@@ -1,3 +1,4 @@
+import { inspectFederatedStructuredWorker } from './federated-structured-worker'
 import type { RuntimeTerminalInteractiveWait } from '../../../../../../shared/runtime-types'
 import type { OrcaRuntimeService } from '../../../../orca-runtime'
 import { OrchestrationError } from '../../../../orchestration/orchestration-error'
@@ -35,6 +36,14 @@ export async function inspectRemoteAttachment(
   const attachment = db.getRemoteDispatchAttachment(dispatchId)
   if (!attachment?.terminal_handle) {
     return { terminal: null, exact: false, status: 'unattached' }
+  }
+  const structured = inspectFederatedStructuredWorker(
+    runtime,
+    dispatchId,
+    attachment.terminal_handle
+  )
+  if (structured) {
+    return structured
   }
   const terminal = await runtime.showTerminal(attachment.terminal_handle).catch(() => null)
   if (!terminal) {

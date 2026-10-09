@@ -61,6 +61,7 @@ export function resolveStructuredWorkerForDispatch(
 ): StructuredWorkerIdentity | null {
   const handle =
     db.getWorkerDispatch(dispatchId)?.agent_terminal_handle ??
+    db.getRemoteDispatchAttachment(dispatchId)?.terminal_handle ??
     db.getDispatchContextById(dispatchId)?.assignee_handle
   return handle ? resolveStructuredWorkerIdentity(handle, db) : null
 }

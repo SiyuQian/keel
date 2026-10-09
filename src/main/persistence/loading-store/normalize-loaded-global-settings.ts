@@ -1,3 +1,7 @@
+import {
+  normalizeAgentPresets,
+  normalizeWorkflowAgentBindings
+} from '../../../shared/agent-presets'
 import { normalizeNativeChatAppearanceSettings } from '../../../shared/native-chat-appearance-settings'
 import { getDefaultVoiceSettings } from '../../../shared/constants'
 import { normalizePRBotAuthorOverrides } from '../../../shared/pr-bot-author-overrides'
@@ -61,6 +65,8 @@ export function normalizeLoadedGlobalSettings(
     // old default indistinguishable from a real opt-in. Preserve stored `true`; only
     // the default changed.
     ...stripRetiredGlobalSettings(parsed.settings),
+    agentPresets: normalizeAgentPresets(parsed.settings?.agentPresets),
+    workflowAgentBindings: normalizeWorkflowAgentBindings(parsed.settings?.workflowAgentBindings),
     nativeChatAppearance: normalizeNativeChatAppearanceSettings(
       parsed.settings?.nativeChatAppearance
     ),

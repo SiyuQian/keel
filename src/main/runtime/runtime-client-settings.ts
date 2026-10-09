@@ -1,3 +1,4 @@
+import { AgentPresetsSchema, WorkflowAgentBindingsSchema } from '../../shared/agent-presets'
 import { getAppEnvironment } from '../../shared/app-environment'
 import { isArtifactSharingEnabled } from '../../shared/artifact-sharing-gate'
 import { isAgentSkillSharingEnabled } from '../../shared/agent-skill-sharing-gate'
@@ -27,6 +28,8 @@ import type { RuntimeStore } from './runtime-store-contract'
 
 export type RuntimeClientSettings = Pick<
   GlobalSettings,
+  | 'agentPresets'
+  | 'workflowAgentBindings'
   | 'defaultTuiAgent'
   | 'disabledTuiAgents'
   | 'agentCmdOverrides'
@@ -70,6 +73,8 @@ export type RuntimeHostDisplayLabelOverrides = Partial<
 export type RuntimeClientSettingsUpdate = Pick<
   Partial<GlobalSettings>,
   | 'agentStatusHooksEnabled'
+  | 'agentPresets'
+  | 'workflowAgentBindings'
   | 'defaultTuiAgent'
   | 'disabledTuiAgents'
   | 'agentDefaultArgs'
@@ -106,6 +111,8 @@ export class RuntimeClientSettingsController {
     }
     const settings = this.store.getSettings()
     return {
+      agentPresets: settings.agentPresets,
+      workflowAgentBindings: settings.workflowAgentBindings,
       defaultTuiAgent: settings.defaultTuiAgent ?? null,
       disabledTuiAgents: settings.disabledTuiAgents ?? [],
       agentCmdOverrides: settings.agentCmdOverrides ?? {},
@@ -154,6 +161,12 @@ export class RuntimeClientSettingsController {
   async update(updates: RuntimeClientSettingsUpdate): Promise<RuntimeClientSettings> {
     if (!this.store?.getSettings || !this.store.updateSettings) {
       throw new Error('runtime_unavailable')
+    }
+    if (updates.agentPresets !== undefined) {
+      AgentPresetsSchema.parse(updates.agentPresets)
+    }
+    if (updates.workflowAgentBindings !== undefined) {
+      WorkflowAgentBindingsSchema.parse(updates.workflowAgentBindings)
     }
     const beforeSettings = this.store.getSettings()
     const before = beforeSettings.agentStatusHooksEnabled !== false

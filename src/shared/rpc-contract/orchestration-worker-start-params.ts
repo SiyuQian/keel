@@ -27,6 +27,7 @@ export const WorkerStartParams = z
     setup: z.enum(['run', 'skip', 'inherit']).optional(),
     terminal: OptionalString,
     agent: OptionalString,
+    agentPreset: OptionalWorkerLaunchPreference,
     model: OptionalWorkerLaunchPreference,
     effort: OptionalWorkerLaunchPreference,
     retryOf: OptionalString,

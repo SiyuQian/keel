@@ -115,6 +115,9 @@ export async function createStructuredWorkerSessionForWorktree(args: {
     agent: args.agent,
     dispatchId: args.dispatchId,
     ...(options ? { options } : {}),
+    ...(args.launchPreferences?.agentPreset
+      ? { agentPreset: args.launchPreferences.agentPreset }
+      : {}),
     onJournalActivity: (sessionId) =>
       args.runtime.notifyStructuredSessionJournalActivity?.(sessionId)
   })

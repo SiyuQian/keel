@@ -1,3 +1,4 @@
+import type { AgentPreset } from '../../../shared/agent-presets'
 // Attach: reserve the session record, then open its journal.
 //
 // `create` and `ensure` are the same transition with a different starting
@@ -63,6 +64,7 @@ export type AgentSessionAttachParams = {
   runtimeKind: 'native'
   /** Host-resolved defaults for a create-by-intent; remote attach schemas do not accept them. */
   options?: Readonly<Record<string, string>>
+  agentPreset?: AgentPreset
   /** The tab id a create reserves for this chat, taken when its tab is published. Never on the
    *  attach fingerprint: which tab shows the chat is not which conversation it attaches to. */
   surfaceTabId?: string
@@ -104,6 +106,7 @@ export type AgentSessionAttachAuthority = {
  *  between an unknown-outcome attempt and its retry. */
 export function attachFingerprintFields(params: AgentSessionAttachParams): Record<string, unknown> {
   return {
+    ...(params.agentPreset ? { agentPreset: params.agentPreset } : {}),
     location: params.location,
     provider: params.provider,
     agent: params.agent,
@@ -314,6 +317,7 @@ export function reserveRequestFor(input: {
     location: params.location,
     provider: params.provider,
     accountHome: params.accountHome,
+    ...(params.agentPreset ? { agentPreset: { ...params.agentPreset } } : {}),
     ...(params.options ? { options: params.options } : {}),
     ...(params.envelope.expectedRuntimeFence === null && params.surfaceTabId
       ? { surfaceTabId: params.surfaceTabId }

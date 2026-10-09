@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AgentPresetsSchema, WorkflowAgentBindingsSchema } from '../agent-presets'
 import { isTaskProvider } from '../task-providers'
 import type { TaskProvider } from '../task-providers'
 import { isTuiAgent } from '../tui-agent-config'
@@ -82,6 +83,8 @@ export const GitHubProjectSettings = z
 
 export const SettingsUpdate = z
   .object({
+    agentPresets: AgentPresetsSchema.optional(),
+    workflowAgentBindings: WorkflowAgentBindingsSchema.optional(),
     machineName: z.string().trim().max(MACHINE_NAME_MAX_LENGTH).optional(),
     worktreeVisibilityDefaults: WorktreeVisibilityDefaultsUpdate.optional(),
     defaultTuiAgent: z

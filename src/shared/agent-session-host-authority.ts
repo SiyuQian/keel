@@ -1,3 +1,4 @@
+import type { AgentPreset } from './agent-presets'
 import {
   hasUnsafeProviderSessionIdChars,
   isResumableTuiAgent,
@@ -92,6 +93,7 @@ export type AgentSessionClaimedSpawnResult = {
 }
 
 export type AgentLaunchPreferences = {
+  agentPreset?: AgentPreset
   model?: string
   effort?: string
   mode?: string

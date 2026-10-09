@@ -39,7 +39,7 @@ export function useSkillsPageKeyboardNavigation({
         exitSelection()
         return
       }
-      if (view === 'shared') {
+      if (view !== 'skills') {
         exitSharedLinks()
         return
       }

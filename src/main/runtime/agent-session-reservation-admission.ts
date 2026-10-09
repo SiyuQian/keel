@@ -1,3 +1,6 @@
+import type { AgentPreset } from '../../shared/agent-presets'
+import { AgentPresetSchema } from '../../shared/agent-presets'
+import { isDeepStrictEqual } from 'node:util'
 /**
  * Reservation admission: what a reserve request means against the persisted state.
  *
@@ -61,6 +64,7 @@ export type AgentSessionReserveRequest = {
   launchEnv?: AgentSessionLaunchEnv
   /** Initial provider options persisted before the first process is acquired. */
   options?: Readonly<Record<string, string>>
+  agentPreset?: AgentPreset
   /** The tab id a create reserved for this conversation, taken when its tab is published. An id
    *  another session's tab holds is refused here, before anything is spawned. */
   surfaceTabId?: string
@@ -150,6 +154,13 @@ export function applyAgentSessionReservation(
   record: AgentSessionRecord
   disposition: Exclude<AgentSessionReserveDisposition, 'replayed'>
 } {
+  if (
+    request.agentPreset &&
+    (!AgentPresetSchema.safeParse(request.agentPreset).success ||
+      request.agentPreset.provider !== request.provider)
+  ) {
+    throw new Error('agent_session_preset_invalid')
+  }
   if (request.launchEnv && !isAgentSessionLaunchEnv(request.launchEnv)) {
     throw new Error('agent_session_launch_env_invalid')
   }
@@ -187,7 +198,9 @@ export function applyAgentSessionReservation(
     !agentSessionExecutionLocationsEqual(existing.location, request.location) ||
     existing.provider !== request.provider ||
     existing.accountHome.variable !== request.accountHome.variable ||
-    existing.accountHome.path !== request.accountHome.path
+    existing.accountHome.path !== request.accountHome.path ||
+    (request.agentPreset !== undefined &&
+      !isDeepStrictEqual(existing.agentPreset, request.agentPreset))
   ) {
     // Why: location, provider, and account are the session identity; changing one is a fork.
     throw agentSessionRefusalError('agent_session_conflict', { reason: 'identityMismatch' })

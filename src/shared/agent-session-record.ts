@@ -1,3 +1,6 @@
+import { isAgentSessionOptions } from './native-chat-session-options'
+export { isAgentSessionOptions } from './native-chat-session-options'
+import { AgentPresetSchema, type AgentPreset } from './agent-presets'
 import { isAgentSessionRewindRecord, type AgentSessionRewindRecord } from './agent-session-rewind'
 import { isAgentSessionLaunchArgs } from './agent-session-launch-args'
 import { isAgentSessionConversationName } from './agent-session-conversation-name'
@@ -143,6 +146,7 @@ export type AgentSessionRecord = {
   launchDirectory?: string
   /** Provider options the user chose, replayed whenever a new owner starts the session. */
   options?: Record<string, string>
+  agentPreset?: AgentPreset
   rewind?: AgentSessionRewindRecord
   conversationCommand?: AgentSessionConversationCommandRecord
   /** The name Orca gave this conversation, so a later acquisition need not name it again. */
@@ -248,20 +252,6 @@ function isAgentSessionAccountHome(value: unknown): value is AgentSessionAccount
   )
 }
 
-export function isAgentSessionOptions(value: unknown): value is Record<string, string> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false
-  }
-  const entries = Object.entries(value)
-  return (
-    entries.length <= 32 &&
-    entries.every(
-      ([key, option]) =>
-        isBoundedString(key, MAX_ID_LENGTH) && isBoundedString(option, MAX_ID_LENGTH)
-    )
-  )
-}
-
 export function isAgentSessionLaunchEnv(value: unknown): value is AgentSessionLaunchEnv {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false
@@ -360,6 +350,9 @@ export function isPersistedAgentSessionRecord(
     isAgentSessionAccountHome(record.accountHome) &&
     (record.launchDirectory === undefined ||
       isBoundedString(record.launchDirectory, MAX_PATH_LENGTH)) &&
+    (record.agentPreset === undefined ||
+      (AgentPresetSchema.safeParse(record.agentPreset).success &&
+        record.agentPreset.provider === record.provider)) &&
     (record.options === undefined || isAgentSessionOptions(record.options)) &&
     (record.rewind === undefined || isAgentSessionRewindRecord(record.rewind)) &&
     (record.conversationCommand === undefined ||

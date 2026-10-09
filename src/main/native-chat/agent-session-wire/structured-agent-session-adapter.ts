@@ -1,3 +1,4 @@
+import type { AgentPreset } from '../../../shared/agent-presets'
 import type {
   AgentSessionRewindReason,
   AgentSessionRewindSupport
@@ -253,6 +254,7 @@ export type StructuredAgentSessionAcquireInput = {
   fence: number
   spawnToken: string
   options?: Readonly<Record<string, string>>
+  agentPreset?: AgentPreset
   /** Provider events may begin before acquisition returns. */
   events?: StructuredAgentSessionEventSink
   recordPhase?: AgentSessionCreatePhaseRecorder

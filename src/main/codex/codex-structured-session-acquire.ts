@@ -195,7 +195,14 @@ export async function acquireCodexStructuredSession(input: {
       })
     }
     acquisitions.assertCurrent(sessionId, attempt)
-    const opened = await openCodexThread(connection, launch, deps.requestTimeoutMs)
+    const opened = await openCodexThread(
+      connection,
+      {
+        ...launch,
+        ...(acquireInput.agentPreset ? { agentPreset: acquireInput.agentPreset } : {})
+      },
+      deps.requestTimeoutMs
+    )
     acquisitions.assertCurrent(sessionId, attempt)
     primaryThreadId = opened.threadId
     const restoreAdmission = translator?.restoreThread(opened.threadId, opened.thread ?? {})

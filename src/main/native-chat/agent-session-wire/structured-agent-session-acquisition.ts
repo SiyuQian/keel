@@ -39,6 +39,7 @@ export async function acquireOwner(
       fence,
       // Retries must recover the original reservation, not mint a second child.
       spawnToken,
+      ...(record.agentPreset ? { agentPreset: { ...record.agentPreset } } : {}),
       ...(record.options ? { options: record.options } : {}),
       ...(input.eventSink ? { events: input.eventSink } : {}),
       ...(input.recordPhase ? { recordPhase: input.recordPhase } : {}),
@@ -63,12 +64,14 @@ export async function acquireOwner(
               ? input.adapter.readAcquisitionOptions({
                   sessionId: record.sessionId,
                   fence,
+
                   ...(record.options ? { priorOptions: record.options } : {})
                 })
               : readNativeSessionOptions({
                   adapter: input.adapter,
                   sessionId: record.sessionId,
                   fence,
+
                   ...(record.options ? { priorOptions: record.options } : {})
                 })
           )
