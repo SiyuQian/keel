@@ -20,6 +20,7 @@ import {
 } from './skill-discovery-sources'
 import { rootMayContainSourceKind } from './skill-discovery-source-filter'
 import { discoverClaudePluginSkillSources } from './claude-plugin-skill-sources'
+import { workflowScanBudget } from './workflow-scan-budget'
 import { discoverCodexPluginNamespaces } from './skill-plugin-provenance'
 import { findSkillFiles } from './skill-root-file-walk'
 import { runSkillCandidateTasks } from './skill-candidate-concurrency'
@@ -62,6 +63,11 @@ export const LAST_KNOWN_ROOT_SCAN_RETENTION_MS = 5 * 60_000
 
 type RootScan = { exists: boolean; skills: ScannedSkill[]; unavailable?: boolean }
 
+const workflowRootScans = new SkillScanCoalescer<RootScan>(MAX_CACHED_SKILL_ROOTS, Date.now, {
+  timeoutMs: 3000,
+  maximumPending: 64,
+  budget: workflowScanBudget
+})
 const rootScans = new SkillScanCoalescer<RootScan>(MAX_CACHED_SKILL_ROOTS)
 /** Last answered scan per root key, read only when a later scan goes unavailable. */
 const lastKnownRootScans = new Map<string, { skills: ScannedSkill[]; recordedAt: number }>()
@@ -69,6 +75,7 @@ const lastKnownRootScans = new Map<string, { skills: ScannedSkill[]; recordedAt:
 /** Drop every shared root scan, e.g. after a skill install/update mutates disk. */
 export function clearSkillRootScanCache(): void {
   rootScans.clear()
+  workflowRootScans.clear()
   // A mutation invalidates the retained copy too — it is a pre-mutation answer.
   lastKnownRootScans.clear()
 }
@@ -113,18 +120,25 @@ async function pathExists(pathValue: string): Promise<boolean> {
   }
 }
 
-async function readSkillSummary(skillFilePath: string): Promise<{
+async function readSkillSummary(
+  skillFilePath: string,
+  signal: AbortSignal
+): Promise<{
   name: string | null
   description: string | null
   updatedAt: number | null
 } | null> {
   try {
+    signal.throwIfAborted()
     const fileStat = await stat(skillFilePath)
+    signal.throwIfAborted()
     const file = await open(skillFilePath, 'r')
     let content = ''
     try {
+      signal.throwIfAborted()
       const buffer = Buffer.alloc(Math.min(fileStat.size, MAX_MARKDOWN_BYTES))
       const { bytesRead } = await file.read(buffer, 0, buffer.length, 0)
+      signal.throwIfAborted()
       content = buffer.toString('utf8', 0, bytesRead)
     } finally {
       await file.close()
@@ -155,8 +169,9 @@ async function scanRoot(root: SkillScanRoot, signal: AbortSignal): Promise<Scann
       // Why: path identity belongs to the scanning host; canonicalizing before
       // returning prevents symlinked roots from becoming duplicate picker rows.
       const canonicalSkillFilePath = await realpath(skillFilePath).catch(() => skillFilePath)
+      signal.throwIfAborted()
       const directoryPath = dirname(skillFilePath)
-      const summary = await readSkillSummary(skillFilePath)
+      const summary = await readSkillSummary(skillFilePath, signal)
       if (!summary) {
         return null
       }
@@ -185,6 +200,7 @@ async function scanRoot(root: SkillScanRoot, signal: AbortSignal): Promise<Scann
       } satisfies ScannedSkill
     })
   )
+  signal.throwIfAborted()
   return skills.filter((skill): skill is ScannedSkill => skill !== null)
 }
 
@@ -192,20 +208,22 @@ async function scanRoot(root: SkillScanRoot, signal: AbortSignal): Promise<Scann
 // and a repo root when the home dir is the workspace), and their scan differs
 // only by depth, which `sourceKind` decides.
 function rootScanKey(root: SkillScanRoot): string {
-  return `${root.sourceKind}\0${root.path}`
+  return `${root.sourceKind}\0${root.path}\0${JSON.stringify([root.id, root.pluginNamespaces?.toSorted() ?? null])}`
 }
 
 async function scanRootShared(
   root: SkillScanRoot,
-  refresh: boolean
+  refresh: boolean,
+  bounded = false
 ): Promise<SkillScanOutcome<RootScan>> {
   const key = rootScanKey(root)
   try {
-    const outcome = await rootScans.run(
+    const outcome = await (bounded ? workflowRootScans : rootScans).run(
       key,
       { ttlMs: SKILL_ROOT_SCAN_TTL_MS, refresh },
       async (signal) => {
         const exists = await pathExists(root.path)
+        signal.throwIfAborted()
         return { exists, skills: exists ? await scanRoot(root, signal) : [] }
       }
     )
@@ -247,6 +265,7 @@ function mergeScannedSkill(seen: Map<string, DiscoveredSkill>, skill: ScannedSki
       ...publicSkill,
       providers: [...publicSkill.providers],
       rootPaths: [skill.rootPath],
+      directoryPaths: [skill.directoryPath],
       ...(skill.pluginNamespaces ? { pluginNamespaces: [...skill.pluginNamespaces] } : {})
     })
     return
@@ -254,6 +273,9 @@ function mergeScannedSkill(seen: Map<string, DiscoveredSkill>, skill: ScannedSki
   if (existing.rootPaths && !existing.rootPaths.includes(skill.rootPath)) {
     existing.rootPaths.push(skill.rootPath)
   }
+  existing.directoryPaths = [
+    ...new Set([...(existing.directoryPaths ?? [existing.directoryPath]), skill.directoryPath])
+  ]
   // Why: providers is per-agent visibility just like rootPaths; keeping only
   // the first root's tags makes a shared/symlinked skill under-report which
   // agents can see it on the Settings provider badges/filter. Reassign a
@@ -292,10 +314,17 @@ export async function discoverSkills(args: {
     // Workflow inventory also reads user plugins in the executing host's home scope.
     ...((args.includeUserPlugins || (args.cwd && args.includeCwd !== false)) &&
     (!args.sourceKinds?.length || args.sourceKinds.includes('plugin'))
-      ? await discoverClaudePluginSkillSources({ homeDir, cwd: args.cwd ?? homeDir })
+      ? await discoverClaudePluginSkillSources({
+          homeDir,
+          cwd: args.cwd ?? homeDir,
+          bounded: args.includeUserPlugins,
+          refresh
+        })
       : [])
   ].filter((root) => rootMayContainSourceKind(root, args.sourceKinds))
-  const scans = await Promise.all(roots.map((root) => scanRootShared(root, refresh)))
+  const scans = await Promise.all(
+    roots.map((root) => scanRootShared(root, refresh, args.includeUserPlugins))
+  )
   const sources: SkillDiscoverySource[] = roots.map((root, index) => ({
     ...root,
     providers: [...root.providers],

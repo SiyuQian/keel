@@ -43,7 +43,11 @@ export function WorkflowSkillSource({
             </p>
             <p className="text-xs text-muted-foreground">
               {skill.sourceLabel} · {skill.providers.join(', ')}
-              {document?.packageVersion ? ` · v${document.packageVersion}` : ''}
+              {document?.packageVersion
+                ? translate('workflows.packageVersion', ' · v{{version}}', {
+                    version: document.packageVersion
+                  })
+                : ''}
             </p>
             <p className="break-all font-mono text-xs text-muted-foreground">
               {skill.skillFilePath}

@@ -298,3 +298,55 @@ it('shows delayed feedback for a slow request and resets its timer on host switc
   })
   expect(screen.getByText('Reading installed workflows…')).toBeTruthy()
 })
+
+it('preserves the stage, tab, disclosure and focus across a delayed same-host refresh', async () => {
+  let finish!: (value: SkillDiscoveryResult) => void
+  discover.mockResolvedValueOnce(result).mockReturnValueOnce(
+    new Promise<SkillDiscoveryResult>((resolve) => {
+      finish = resolve
+    })
+  )
+  explorer()
+  await screen.findByRole('heading', { name: 'example', level: 2 })
+  fireEvent.click(screen.getByRole('button', { name: 'Next stage' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+  const tab = screen.getByRole('tab', { name: 'Skills' })
+  fireEvent.mouseDown(tab, { button: 0, ctrlKey: false })
+  fireEvent.click(tab)
+  const disclosure = screen.getByRole('button', { name: 'Original SKILL.md' })
+  fireEvent.click(disclosure)
+  disclosure.focus()
+  await act(async () => finish({ ...result, scannedAt: 2 }))
+  expect(screen.getByRole('tab', { name: 'Skills' }).getAttribute('data-state')).toBe('active')
+  expect(
+    screen.getByRole('button', { name: 'Original SKILL.md' }).getAttribute('aria-expanded')
+  ).toBe('true')
+  expect(document.activeElement).toBe(disclosure)
+  fireEvent.mouseDown(screen.getByRole('tab', { name: 'Flow' }), { button: 0, ctrlKey: false })
+  fireEvent.click(screen.getByRole('tab', { name: 'Flow' }))
+  expect(screen.getByText('Check the evidence.')).toBeTruthy()
+})
+
+it('selects distinct workflow documents contributed by one Skill owner', async () => {
+  discover.mockResolvedValue({
+    ...result,
+    workflows: {
+      ...result.workflows,
+      entries: [
+        {
+          ...result.workflows!.entries[0]!,
+          definition: { ...result.workflows!.entries[0]!.definition!, name: 'First' }
+        },
+        {
+          ...result.workflows!.entries[0]!,
+          path: '/plugin/workflow.yaml',
+          definition: { ...result.workflows!.entries[0]!.definition!, name: 'Second' }
+        }
+      ]
+    }
+  })
+  explorer()
+  await screen.findByRole('heading', { name: 'First', level: 2 })
+  fireEvent.click(screen.getByRole('button', { name: 'Second Home' }))
+  expect(screen.getByRole('heading', { name: 'Second', level: 2 })).toBeTruthy()
+})

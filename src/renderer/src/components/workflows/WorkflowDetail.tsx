@@ -54,12 +54,16 @@ export function WorkflowDetail({
         <p className="break-all font-mono text-xs text-muted-foreground">{entry.path}</p>
         {definition?.max_plan_revisions !== undefined ? (
           <p className="text-xs text-muted-foreground">
-            max_plan_revisions: {definition.max_plan_revisions}
+            {translate('workflows.planLimit', 'max_plan_revisions: {{count}}', {
+              count: definition.max_plan_revisions
+            })}
           </p>
         ) : null}
         {definition?.max_fix_rounds !== undefined ? (
           <p className="text-xs text-muted-foreground">
-            max_fix_rounds: {definition.max_fix_rounds}
+            {translate('workflows.fixLimit', 'max_fix_rounds: {{count}}', {
+              count: definition.max_fix_rounds
+            })}
           </p>
         ) : null}
         {entry.error ? (
@@ -77,7 +81,7 @@ export function WorkflowDetail({
             <TabsTrigger value="skills" disabled={!definition}>
               {translate('workflows.skills', 'Skills')}
             </TabsTrigger>
-            <TabsTrigger value="yaml">YAML</TabsTrigger>
+            <TabsTrigger value="yaml">{translate('workflows.yaml', 'YAML')}</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="flow" className="md:min-h-0 md:overflow-hidden">
@@ -128,15 +132,15 @@ export function WorkflowDetail({
                       {translate('workflows.coordinatorReturns', 'Coordinator return paths')}
                     </p>
                     <p>
-                      plan-review → plan
+                      {translate('workflows.planReturn', 'plan-review → plan')}
                       {definition?.max_plan_revisions !== undefined
-                        ? ` · max_plan_revisions: ${definition.max_plan_revisions}`
+                        ? ` · ${translate('workflows.planLimit', 'max_plan_revisions: {{count}}', { count: definition.max_plan_revisions })}`
                         : ''}
                     </p>
                     <p>
-                      fix → review
+                      {translate('workflows.fixReturn', 'fix → review')}
                       {definition?.max_fix_rounds !== undefined
-                        ? ` · max_fix_rounds: ${definition.max_fix_rounds}`
+                        ? ` · ${translate('workflows.fixLimit', 'max_fix_rounds: {{count}}', { count: definition.max_fix_rounds })}`
                         : ''}
                     </p>
                     <p>

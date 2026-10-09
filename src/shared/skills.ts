@@ -20,6 +20,8 @@ export type DiscoveredSkill = {
   rootPaths?: string[]
   /** Verified plugin identities from all contributing installation sources. */
   pluginNamespaces?: string[]
+  /** All discovered package directories that contributed this canonical Skill. */
+  directoryPaths?: string[]
   directoryPath: string
   skillFilePath: string
   installed: boolean

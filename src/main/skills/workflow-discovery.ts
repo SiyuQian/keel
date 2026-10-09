@@ -16,6 +16,7 @@ import {
 import { z } from 'zod'
 import { workflowSkillCandidates } from '../../shared/workflow-skill-reference'
 import { SkillScanCoalescer, isSkillRootUnavailableError } from './skill-scan-coalescer'
+import { workflowScanBudget } from './workflow-scan-budget'
 import { stablePathId } from './skill-discovery-sources'
 import { runSkillCandidateTasks } from './skill-candidate-concurrency'
 
@@ -50,17 +51,31 @@ function packageVersion(source: string): string | null {
 
 const workflowScans = new SkillScanCoalescer<WorkflowObservation>(32, Date.now, {
   timeoutMs: 10_000,
-  maximumPending: 8
+  maximumPending: 8,
+  budget: workflowScanBudget
 })
+
+const fileReads = new SkillScanCoalescer<string>(128, Date.now, {
+  timeoutMs: 2000,
+  maximumPending: 64,
+  budget: workflowScanBudget
+})
+export function clearWorkflowDiscoveryCaches(): void {
+  workflowScans.clear()
+  fileReads.clear()
+}
 
 export async function observeWorkflows(
   skills: readonly DiscoveredSkill[],
-  target: ResolvedSkillDiscoveryTarget
+  target: ResolvedSkillDiscoveryTarget,
+  refresh = false
 ): Promise<WorkflowObservation> {
   const key = stablePathId(JSON.stringify([target, skills]))
   try {
     return (
-      await workflowScans.run(key, { ttlMs: 0 }, (signal) => readWorkflows(skills, target, signal))
+      await workflowScans.run(key, { ttlMs: 0, refresh, replacePending: refresh }, (signal) =>
+        readWorkflows(skills, target, signal, refresh)
+      )
     ).value
   } catch (error) {
     if (!isSkillRootUnavailableError(error)) {
@@ -75,7 +90,8 @@ export async function observeWorkflows(
 async function readWorkflows(
   skills: readonly DiscoveredSkill[],
   target: ResolvedSkillDiscoveryTarget,
-  signal: AbortSignal
+  signal: AbortSignal,
+  refresh: boolean
 ): Promise<WorkflowObservation> {
   const result: WorkflowObservation = { entries: [], documents: [], issues: [] }
   let bytes = 4096 // Reserve room for bounded inventory warnings.
@@ -89,14 +105,22 @@ async function readWorkflows(
   }
   const diskPath = (path: string): string =>
     target.kind === 'wsl' ? toWindowsWslUncPath(path, target.distro) : path
-  const read = async (path: string): Promise<string> => {
+  const read = async (path: string, fresh = false): Promise<string> => {
     signal.throwIfAborted()
-    const file = await readNodeFileWithinLimit(diskPath(path), MAX_WORKFLOW_SOURCE_BYTES, {
-      regularFileOnly: true,
-      signal
-    })
+    const file = await fileReads.run(
+      diskPath(path),
+      { ttlMs: 0, refresh: fresh, replacePending: fresh },
+      async (readSignal) => {
+        const file = await readNodeFileWithinLimit(diskPath(path), MAX_WORKFLOW_SOURCE_BYTES, {
+          regularFileOnly: true,
+          signal: readSignal
+        })
+        readSignal.throwIfAborted()
+        return file.buffer.toString('utf8')
+      }
+    )
     signal.throwIfAborted()
-    return file.buffer.toString('utf8')
+    return file.value
   }
   const installed = skills.filter((skill) => skill.installed)
   if (installed.length > MAX_CANDIDATES) {
@@ -104,21 +128,36 @@ async function readWorkflows(
       'Partial inventory: only the first 256 installed skill packages were inspected.'
     )
   }
-  const candidates = installed.slice(0, MAX_CANDIDATES)
+  const candidates: { skill: DiscoveredSkill; directoryPath: string }[] = []
+  locations: for (const skill of installed) {
+    for (const directoryPath of new Set(skill.directoryPaths ?? [skill.directoryPath])) {
+      if (candidates.length === MAX_CANDIDATES) {
+        result.issues.push(
+          'Partial inventory: only the first 256 installed package locations were inspected.'
+        )
+        break locations
+      }
+      candidates.push({ skill, directoryPath })
+    }
+  }
+  const seenWorkflows = new Set<string>()
   for (let offset = 0; offset < candidates.length; offset += 4) {
     signal.throwIfAborted()
     const entries = await runSkillCandidateTasks(
       candidates
         .slice(offset, offset + 4)
-        .map((skill) => async (): Promise<WorkflowEntry | null> => {
+        .map(({ skill, directoryPath }) => async (): Promise<WorkflowEntry | null> => {
           const path = (target.kind === 'wsl' ? posix : { join }).join(
-            skill.directoryPath,
+            directoryPath,
             'workflow.yaml'
           )
           let source: string
           try {
-            source = await read(path)
+            source = await read(path, refresh)
           } catch (error) {
+            if (isSkillRootUnavailableError(error)) {
+              throw error
+            }
             return missing(error)
               ? null
               : { ownerId: skill.id, path, source: null, error: readError(error) }
@@ -133,6 +172,13 @@ async function readWorkflows(
     for (const entry of entries) {
       if (!entry) {
         continue
+      }
+      if (entry.source !== null) {
+        const identity = JSON.stringify([entry.ownerId, stablePathId(entry.source)])
+        if (seenWorkflows.has(identity)) {
+          continue
+        }
+        seenWorkflows.add(identity)
       }
       if (!fits(entry)) {
         result.issues.push('Partial inventory: workflow response reached the 2 MiB limit.')

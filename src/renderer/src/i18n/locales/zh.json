@@ -19235,6 +19235,12 @@
     "ambiguousSkill": "多个已安装的 Skills 匹配此引用。所有来源显示在下方。",
     "noDescription": "未声明描述。",
     "rawSkill": "原始 SKILL.md",
-    "sourceUnavailable": "本次读取中无法获取 Skill 原文。"
+    "sourceUnavailable": "本次读取中无法获取 Skill 原文。",
+    "planLimit": "max_plan_revisions: {{count}}",
+    "fixLimit": "max_fix_rounds: {{count}}",
+    "yaml": "YAML",
+    "planReturn": "plan-review → plan",
+    "fixReturn": "fix → review",
+    "packageVersion": " · v{{version}}"
   }
 }

@@ -6,7 +6,11 @@ export type SkillScanRunOptions = {
   ttlMs: number
   /** Skip every cached and in-flight result and re-read disk. */
   refresh?: boolean
+  /** A fresh observation can replace live work within the shared budget. */
+  replacePending?: boolean
 }
+
+export type SkillScanPendingBudget = { pending: number; maximumPending: number }
 
 type CacheEntry<T> = { value: T; expiresAt: number }
 type PendingEntry<T> = {
@@ -81,7 +85,11 @@ export class SkillScanCoalescer<T> {
   constructor(
     private readonly maximumEntries: number,
     private readonly now: () => number = Date.now,
-    private readonly limits: { timeoutMs?: number; maximumPending?: number } = {}
+    private readonly limits: {
+      timeoutMs?: number
+      maximumPending?: number
+      budget?: SkillScanPendingBudget
+    } = {}
   ) {}
 
   async run(
@@ -107,10 +115,14 @@ export class SkillScanCoalescer<T> {
       return { value: fresh.value, cached: true }
     }
     const inFlight = this.pending.get(key)
-    if (inFlight && this.now() - inFlight.startedAt < MAX_JOINABLE_SCAN_AGE_MS) {
+    if (
+      inFlight &&
+      ((this.limits.budget && inFlight.abort.signal.aborted) ||
+        (!options.replacePending && this.now() - inFlight.startedAt < MAX_JOINABLE_SCAN_AGE_MS))
+    ) {
       return { value: await inFlight.result, cached: true }
     }
-    if (inFlight) {
+    if (inFlight && !options.replacePending) {
       if (this.abandonedScans >= MAX_ABANDONED_SCANS) {
         // Why leave the stalled entry in `pending`: it is still the only scan that
         // can answer this key, so keeping it lets the root recover on its own the
@@ -150,6 +162,13 @@ export class SkillScanCoalescer<T> {
   }
 
   private start(key: string, ttlMs: number, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const budget = this.limits.budget
+    if (budget && budget.pending >= budget.maximumPending) {
+      throw new SkillScanShedError()
+    }
+    if (budget) {
+      budget.pending++
+    }
     const abort = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
     const promise = task(abort.signal)
@@ -168,6 +187,9 @@ export class SkillScanCoalescer<T> {
       })
       .finally(() => {
         clearTimeout(timer)
+        if (budget) {
+          budget.pending--
+        }
         // Why: a newer forced scan may already own this key; only the entry that
         // registered itself may remove itself.
         if (this.pending.get(key)?.promise === promise) {

@@ -38,6 +38,10 @@ export function readWslSkillDiscoveryObservation(
 ): WslSkillDiscoveryObservation {
   const fields = output.split('\0')
   const rootExists = new Map<number, boolean>()
+  const packages = new Map<
+    string,
+    { rootPath: string; directory: string; namespace: string | undefined }
+  >()
   const rows: WslSkillDiscoveryObservation['rows'] = []
   let index = 0
   while (index < fields.length && fields[index]) {
@@ -58,6 +62,24 @@ export function readWslSkillDiscoveryObservation(
         manifest.length <= 256 * 1024
           ? pluginManifestNamespace(manifest.toString('utf8'))
           : undefined
+      const marker = pathPosix.basename(pathPosix.dirname(skillFilePath))
+      const directory = pathPosix.dirname(pathPosix.dirname(skillFilePath))
+      const relative = pathPosix.relative(root.path, directory)
+      if (
+        root.id === 'codex-plugin-cache' &&
+        pathPosix.basename(skillFilePath) === 'plugin.json' &&
+        ['.codex-plugin', '.claude-plugin'].includes(marker) &&
+        relative !== '..' &&
+        !relative.startsWith('../') &&
+        !pathPosix.isAbsolute(relative)
+      ) {
+        const key = JSON.stringify([root.path, directory])
+        const existing = packages.get(key)
+        if (!existing?.namespace) {
+          packages.set(key, { rootPath: root.path, directory, namespace })
+        }
+        continue
+      }
       const row = rows.findLast(
         (item) => item.skill.skillFilePath === skillFilePath && item.skill.rootPath === root.path
       )
@@ -97,6 +119,7 @@ export function readWslSkillDiscoveryObservation(
         rootPath: root.path,
         rootPaths: [root.path],
         ...(root.pluginNamespaces ? { pluginNamespaces: [...root.pluginNamespaces] } : {}),
+        directoryPaths: [directoryPath],
         directoryPath,
         skillFilePath,
         installed: true,
@@ -105,6 +128,22 @@ export function readWslSkillDiscoveryObservation(
     })
   }
 
+  for (const row of rows) {
+    let directory = pathPosix.dirname(row.skill.skillFilePath)
+    for (let depth = 0; depth < 10; depth++) {
+      const location = packages.get(JSON.stringify([row.skill.rootPath, directory]))
+      if (location) {
+        if (location.namespace) {
+          row.skill.pluginNamespaces = [location.namespace]
+        }
+        break
+      }
+      if (directory === row.skill.rootPath) {
+        break
+      }
+      directory = pathPosix.dirname(directory)
+    }
+  }
   const sources: SkillDiscoverySource[] = roots.map((root, rootIndex) => {
     const exists = rootExists.get(rootIndex) ?? false
     return {
@@ -144,6 +183,12 @@ export function projectWslSkillDiscovery(
     // Filter aliases before deduplication; each name/source may select a different row.
     const existing = skillsByCanonicalPath.get(canonicalSkillFilePath)
     if (existing) {
+      existing.directoryPaths = [
+        ...new Set([
+          ...(existing.directoryPaths ?? [existing.directoryPath]),
+          ...(skill.directoryPaths ?? [skill.directoryPath])
+        ])
+      ]
       if (skill.pluginNamespaces?.length) {
         existing.pluginNamespaces = [
           ...new Set([...(existing.pluginNamespaces ?? []), ...skill.pluginNamespaces])
@@ -165,6 +210,7 @@ export function projectWslSkillDiscovery(
     skillsByCanonicalPath.set(canonicalSkillFilePath, {
       ...skill,
       providers: [...skill.providers],
+      directoryPaths: [...(skill.directoryPaths ?? [skill.directoryPath])],
       rootPaths: [...(skill.rootPaths ?? [skill.rootPath])],
       ...(skill.pluginNamespaces ? { pluginNamespaces: [...skill.pluginNamespaces] } : {})
     })

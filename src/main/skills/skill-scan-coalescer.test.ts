@@ -358,3 +358,49 @@ it('bounds repeated replacements even when timed-out filesystem work cannot be c
     vi.useRealTimers()
   }
 })
+
+it('retains superseded uncancellable work in one budget across acquisition phases', async () => {
+  vi.useFakeTimers()
+  const budget = { pending: 0, maximumPending: 2 }
+  const firstPhase = new SkillScanCoalescer<number>(8, Date.now, {
+    timeoutMs: 100,
+    maximumPending: 8,
+    budget
+  })
+  const secondPhase = new SkillScanCoalescer<number>(8, Date.now, {
+    timeoutMs: 100,
+    maximumPending: 8,
+    budget
+  })
+  const gates = [deferred<number>(), deferred<number>()]
+  try {
+    const first = firstPhase.run('host', { ttlMs: 0 }, () => gates[0]!.promise)
+    const fresh = firstPhase.run(
+      'host',
+      { ttlMs: 0, refresh: true, replacePending: true },
+      () => gates[1]!.promise
+    )
+    const outcomes = Promise.allSettled([first, fresh])
+    await expect(
+      secondPhase.run('another-host', { ttlMs: 0 }, async () => 3)
+    ).rejects.toBeInstanceOf(SkillScanShedError)
+    await vi.advanceTimersByTimeAsync(100)
+    expect((await outcomes).every((outcome) => outcome.status === 'rejected')).toBe(true)
+    firstPhase.clear()
+    await vi.advanceTimersByTimeAsync(31000)
+    await expect(
+      firstPhase.run('host', { ttlMs: 0, refresh: true, replacePending: true }, async () => 4)
+    ).rejects.toThrow('timed out')
+    await expect(
+      secondPhase.run('another-host', { ttlMs: 0 }, async () => 3)
+    ).rejects.toBeInstanceOf(SkillScanShedError)
+    gates[0]!.resolve(1)
+    gates[1]!.resolve(2)
+    await vi.advanceTimersByTimeAsync(0)
+    expect((await secondPhase.run('another-host', { ttlMs: 0 }, async () => 3)).value).toBe(3)
+  } finally {
+    gates[0]!.resolve(1)
+    gates[1]!.resolve(2)
+    vi.useRealTimers()
+  }
+})

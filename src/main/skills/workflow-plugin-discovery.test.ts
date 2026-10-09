@@ -142,3 +142,111 @@ it.skipIf(process.platform === 'win32')(
     expect(workflowSkillCandidates('arbitrary-directory:pr-review', result.skills)).toEqual([])
   }
 )
+
+it('keeps current workspace namespaces when two aliases use the same installed package', async () => {
+  const { homeDir, claude } = await fixture()
+  const workspaces = [join(homeDir, 'alpha'), join(homeDir, 'beta')]
+  await writeFile(
+    join(homeDir, '.claude', 'plugins', 'installed_plugins.json'),
+    JSON.stringify({
+      plugins: Object.fromEntries(
+        ['alpha', 'beta'].map((name) => [
+          `${name}@market`,
+          [{ scope: 'user', installPath: claude }]
+        ])
+      )
+    })
+  )
+  for (const [index, name] of ['alpha', 'beta'].entries()) {
+    const cwd = workspaces[index]!
+    await mkdir(join(cwd, '.claude'), { recursive: true })
+    await writeFile(
+      join(cwd, '.claude', 'settings.json'),
+      JSON.stringify({
+        enabledPlugins: {
+          'alpha@market': name === 'alpha',
+          'beta@market': name === 'beta',
+          'devpilot@market': false
+        }
+      })
+    )
+    const result = await discoverSkills({ homeDir, cwd })
+    expect(workflowSkillCandidates(`${name}:pr-review`, result.skills)).toHaveLength(1)
+    expect(
+      workflowSkillCandidates(`${name === 'alpha' ? 'beta' : 'alpha'}:pr-review`, result.skills)
+    ).toEqual([])
+  }
+})
+
+it.each(['native', 'wsl'])(
+  'finds distinct workflow siblings of %s file-only Skill aliases and deduplicates equivalent siblings',
+  async (runtime) => {
+    const { homeDir, codex } = await fixture()
+    const linked = join(homeDir, '.agents', 'skills', 'linked')
+    const packageDirectory = join(codex, 'skills', 'pr-review')
+    await mkdir(linked, { recursive: true })
+    await symlink(join(packageDirectory, 'SKILL.md'), join(linked, 'SKILL.md'), 'file')
+    const yaml =
+      'version: 1\nname: Plugin workflow\nstages: [{id: read, session: worker, prompt: Read.}]'
+    await writeFile(join(packageDirectory, 'workflow.yaml'), yaml)
+    const discover = async (refresh = false) => {
+      if (runtime === 'native') {
+        return discoverSkills({ homeDir, includeCwd: false, refresh })
+      }
+      const roots = buildSkillDiscoverySources({ homeDir, includeCwd: false })
+      const scan = await runProcess({
+        program: 'bash',
+        args: ['-c', buildWslSkillDiscoveryCommand(roots)],
+        timeoutMs: 10000,
+        maxOutputBytes: 2 * 1024 * 1024
+      })
+      expect(scan.code).toBe(0)
+      return parseWslSkillDiscoveryOutput(scan.stdout, roots)
+    }
+    let result = await discover()
+    let observation = await observeWorkflows(result.skills, { kind: 'native-host', cwd: undefined })
+    expect(
+      observation.entries.filter((entry) => entry.definition?.name === 'Plugin workflow')
+    ).toHaveLength(1)
+    await writeFile(join(linked, 'workflow.yaml'), yaml.replace('Plugin workflow', 'Home workflow'))
+    result = await discover(true)
+    observation = await observeWorkflows(result.skills, { kind: 'native-host', cwd: undefined })
+    expect(
+      observation.entries.filter(
+        (entry) => entry.ownerId === result.skills.find((skill) => skill.name === 'pr-review')?.id
+      )
+    ).toHaveLength(2)
+    await rm(join(linked, 'workflow.yaml'))
+    await symlink(join(packageDirectory, 'workflow.yaml'), join(linked, 'workflow.yaml'), 'file')
+    observation = await observeWorkflows(result.skills, { kind: 'native-host', cwd: undefined })
+    expect(
+      observation.entries.filter((entry) => entry.definition?.name === 'Plugin workflow')
+    ).toHaveLength(1)
+  }
+)
+
+it.skipIf(process.platform === 'win32')(
+  'reads and emits each WSL package manifest once for multiple Skills',
+  async () => {
+    const { homeDir, codex } = await fixture()
+    await mkdir(join(codex, 'skills', 'second'), { recursive: true })
+    await writeFile(
+      join(codex, 'skills', 'second', 'SKILL.md'),
+      '---\nname: second\n---\nSecond source.'
+    )
+    const roots = buildSkillDiscoverySources({ homeDir, includeCwd: false }).filter(
+      (root) => root.id === 'codex-plugin-cache'
+    )
+    const scan = await runProcess({
+      program: 'bash',
+      args: ['-c', buildWslSkillDiscoveryCommand(roots)],
+      timeoutMs: 10000,
+      maxOutputBytes: 2 * 1024 * 1024
+    })
+    expect(scan.code).toBe(0)
+    expect(scan.stdout.split('\0').filter((field) => field === 'P')).toHaveLength(1)
+    const skills = parseWslSkillDiscoveryOutput(scan.stdout, roots).skills
+    expect(workflowSkillCandidates('devpilot:pr-review', skills)).toHaveLength(1)
+    expect(workflowSkillCandidates('devpilot:second', skills)).toHaveLength(1)
+  }
+)
