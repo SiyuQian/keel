@@ -44,10 +44,11 @@ function nodeCommand(scriptPath: string): string {
 describe('runEphemeralVmRecipeStart', () => {
   it.each([
     { checkoutMode: undefined, expected: 1 },
+    { checkoutMode: undefined, expected: 1, id: 'orca-docker' },
     { checkoutMode: 'provisioned-root' as const, expected: 2 }
   ])(
     'advertises result schema $expected for checkout mode $checkoutMode',
-    async ({ checkoutMode, expected }) => {
+    async ({ checkoutMode, expected, id = 'cloud-sandbox' }) => {
       const repoPath = makeRepo()
       const scriptPath = join(repoPath, 'start.js')
       writeFileSync(
@@ -67,7 +68,7 @@ describe('runEphemeralVmRecipeStart', () => {
       const result = await runEphemeralVmRecipeStart({
         repoPath,
         recipe: {
-          id: 'cloud-sandbox',
+          id,
           name: 'Cloud Sandbox',
           checkoutMode,
           create: nodeCommand(scriptPath)

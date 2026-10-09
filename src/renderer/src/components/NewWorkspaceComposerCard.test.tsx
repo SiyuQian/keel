@@ -1,3 +1,4 @@
+import { DOCKER_WORKSPACE_RECIPE } from '../../../shared/docker-workspace-recipe'
 // @vitest-environment happy-dom
 
 import React, { act } from 'react'
@@ -827,7 +828,10 @@ describe('NewWorkspaceComposerCard folder task source mode', () => {
     expect(storeMocks.openSettingsTarget).not.toHaveBeenCalled()
   })
 
-  it('shows VM recipes inside the run target picker', () => {
+  it.each([
+    ['vercel', 'Vercel Sandbox'],
+    ['orca-docker', 'Docker']
+  ])('shows %s inside the run target picker', (id, name) => {
     const hostChanges: string[] = []
     const recipeChanges: (string | null)[] = []
     current = renderCard({
@@ -835,19 +839,12 @@ describe('NewWorkspaceComposerCard folder task source mode', () => {
       selectedProjectHostSetupId: 'setup-local',
       onProjectHostSetupChange: (setupId) => hostChanges.push(setupId),
       ephemeralVmRecipes: [
-        {
-          id: 'vercel',
-          name: 'Vercel Sandbox',
-          create: './scripts/orca-vm/vercel.start.sh',
-          destroy: './scripts/orca-vm/vercel.cleanup.sh',
-          destroyDisabled: false
-        }
-      ] as never,
+        id === 'orca-docker' ? DOCKER_WORKSPACE_RECIPE : { id, name, create: 'create' }
+      ],
       onEphemeralVmRecipeChange: (recipeId) => recipeChanges.push(recipeId)
     })
 
     expect(current.container.textContent).toContain('Run on')
-    expect(current.container.textContent).not.toContain('VM recipe')
 
     openRunTargetPicker(current.container)
 
@@ -859,12 +856,12 @@ describe('NewWorkspaceComposerCard folder task source mode', () => {
     act(() => ephemeralVmItem?.click())
 
     const recipeItem = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find(
-      (item) => item.textContent?.includes('Vercel Sandbox')
+      (item) => item.textContent?.includes(name)
     )
     expect(recipeItem).toBeTruthy()
     act(() => recipeItem?.click())
 
-    expect(recipeChanges).toEqual(['vercel'])
+    expect(recipeChanges).toEqual([id])
     expect(hostChanges).toEqual([])
   })
 

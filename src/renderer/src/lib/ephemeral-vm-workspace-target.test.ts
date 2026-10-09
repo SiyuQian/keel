@@ -101,78 +101,81 @@ describe('prepareEphemeralVmWorkspaceTarget', () => {
     expect(window.api.ephemeralVm.cleanup).not.toHaveBeenCalled()
   })
 
-  it('carries a provisioned-root source commit through runtime-owned SSH import', async () => {
-    vi.mocked(window.api.ephemeralVm.provision).mockResolvedValue({
-      ok: true,
-      connectionType: 'ssh',
-      stderr: 'creating sandbox',
-      warnings: [],
-      sshTargetId: 'runtime-ssh-runtime-1',
-      expectedRefHead: 'abc123',
-      runtime: {
-        id: 'runtime-1',
-        repoId: 'repo-1',
-        recipeId: 'cloud-sandbox',
-        connectionMode: 'ssh',
+  it.each(['cloud-sandbox', 'orca-docker'])(
+    'carries a provisioned-root source commit through runtime-owned SSH import for %s',
+    async (recipeId) => {
+      vi.mocked(window.api.ephemeralVm.provision).mockResolvedValue({
+        ok: true,
+        connectionType: 'ssh',
+        stderr: 'creating sandbox',
+        warnings: [],
         sshTargetId: 'runtime-ssh-runtime-1',
-        status: 'running',
-        cleanupStatus: 'not_started',
-        createdAt: 1,
-        updatedAt: 1,
-        recipeResult: {
-          schemaVersion: 2,
-          checkoutMode: 'provisioned-root',
-          connection: {
-            type: 'ssh',
-            projectRoot: '/workspace/repo',
-            target: {
-              label: 'Sandbox',
-              host: 'sandbox.example.com',
-              port: 22,
-              username: 'root'
+        expectedRefHead: 'abc123',
+        runtime: {
+          id: 'runtime-1',
+          repoId: 'repo-1',
+          recipeId,
+          connectionMode: 'ssh',
+          sshTargetId: 'runtime-ssh-runtime-1',
+          status: 'running',
+          cleanupStatus: 'not_started',
+          createdAt: 1,
+          updatedAt: 1,
+          recipeResult: {
+            schemaVersion: 2,
+            checkoutMode: 'provisioned-root',
+            connection: {
+              type: 'ssh',
+              projectRoot: '/workspace/repo',
+              target: {
+                label: 'Sandbox',
+                host: 'sandbox.example.com',
+                port: 22,
+                username: 'root'
+              }
             }
           }
         }
-      }
-    })
-    const setupResult = {
-      project: { id: 'project-1' },
-      setup: { id: 'setup-1', hostId: 'local' },
-      repo: { id: 'repo-runtime' }
-    } as ProjectHostSetupResult
-    const setupExistingFolder = vi.fn<PrepareEphemeralVmWorkspaceTargetArgs['setupExistingFolder']>(
-      async () => setupResult
-    )
+      })
+      const setupResult = {
+        project: { id: 'project-1' },
+        setup: { id: 'setup-1', hostId: 'local' },
+        repo: { id: 'repo-runtime' }
+      } as ProjectHostSetupResult
+      const setupExistingFolder = vi.fn<
+        PrepareEphemeralVmWorkspaceTargetArgs['setupExistingFolder']
+      >(async () => setupResult)
 
-    const result = await prepareEphemeralVmWorkspaceTarget({
-      repoId: 'repo-1',
-      recipeId: 'cloud-sandbox',
-      projectId: 'project-1',
-      workspaceName: 'Fix Login Race',
-      setupExistingFolder
-    })
+      const result = await prepareEphemeralVmWorkspaceTarget({
+        repoId: 'repo-1',
+        recipeId,
+        projectId: 'project-1',
+        workspaceName: 'Fix Login Race',
+        setupExistingFolder
+      })
 
-    expect(assertRuntimeEnvironmentCapability).not.toHaveBeenCalled()
-    expect(setupExistingFolder).toHaveBeenCalledWith({
-      projectId: 'project-1',
-      hostId: 'ssh:runtime-ssh-runtime-1',
-      path: '/workspace/repo',
-      setupMethod: 'imported-existing-folder'
-    })
-    expect(result).toEqual({
-      ok: true,
-      setup: {
-        ...setupResult,
-        setup: { ...setupResult.setup, hostId: 'ssh:runtime-ssh-runtime-1' }
-      },
-      runtimeId: 'runtime-1',
-      checkoutMode: 'provisioned-root',
-      expectedRefHead: 'abc123',
-      stderr: 'creating sandbox',
-      warnings: []
-    })
-    expect(window.api.ephemeralVm.cleanup).not.toHaveBeenCalled()
-  })
+      expect(assertRuntimeEnvironmentCapability).not.toHaveBeenCalled()
+      expect(setupExistingFolder).toHaveBeenCalledWith({
+        projectId: 'project-1',
+        hostId: 'ssh:runtime-ssh-runtime-1',
+        path: '/workspace/repo',
+        setupMethod: 'imported-existing-folder'
+      })
+      expect(result).toEqual({
+        ok: true,
+        setup: {
+          ...setupResult,
+          setup: { ...setupResult.setup, hostId: 'ssh:runtime-ssh-runtime-1' }
+        },
+        runtimeId: 'runtime-1',
+        checkoutMode: 'provisioned-root',
+        expectedRefHead: 'abc123',
+        stderr: 'creating sandbox',
+        warnings: []
+      })
+      expect(window.api.ephemeralVm.cleanup).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects and cleans up an Orca-server provisioned root before project import', async () => {
     vi.mocked(window.api.ephemeralVm.provision).mockResolvedValue({

@@ -1,4 +1,6 @@
 import { app, ipcMain } from 'electron'
+import { isDockerWorkspaceRecipe } from '../../shared/docker-workspace-recipe'
+import { doctorDockerWorkspace } from '../docker-workspace-connection'
 import type { Store } from '../persistence'
 import {
   getEphemeralVmRecipeResultConnection,
@@ -29,7 +31,6 @@ import {
   getRecipeRepo,
   listRecipeCatalog,
   listRecipes,
-  resolveRecipeForRepo,
   type EphemeralVmRecipeCatalogEntry
 } from './ephemeral-vm-recipe-context'
 import { registerEphemeralVmRuntimeHandlers } from './ephemeral-vm-runtime-handlers'
@@ -94,10 +95,15 @@ export function registerEphemeralVmHandlers(store: Store, pluginService?: Plugin
         return repo.doctor(args.recipeId)
       }
       const pluginRecipes = await getApprovedPluginVmRecipes(pluginService)
+      const recipes = listRecipes(store, args.repoId, pluginRecipes).recipes
+      const recipe = recipes.find((entry) => entry.id === args.recipeId)
+      if (recipe && isDockerWorkspaceRecipe(recipe)) {
+        return doctorDockerWorkspace(repo.repo.path)
+      }
       return doctorEphemeralVmRecipe({
         repoPath: repo.repo.path,
         recipeId: args.recipeId,
-        recipes: listRecipes(store, args.repoId, pluginRecipes).recipes,
+        recipes,
         localExecutionSupported: true
       })
     }
@@ -122,11 +128,11 @@ export function registerEphemeralVmHandlers(store: Store, pluginService?: Plugin
       if (!repo.ok) {
         return { ok: false, error: repo.message, stdout: '', stderr: '' }
       }
-      const recipe = resolveRecipeForRepo(
-        repo.repo.path,
-        args.recipeId,
+      const recipe = listRecipes(
+        store,
+        args.repoId,
         await getApprovedPluginVmRecipes(pluginService)
-      )
+      ).recipes.find((entry) => entry.id === args.recipeId)
       if (!recipe) {
         return { ok: false, error: `Recipe not found: ${args.recipeId}`, stdout: '', stderr: '' }
       }

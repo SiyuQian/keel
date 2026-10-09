@@ -1,4 +1,5 @@
 import { app, ipcMain } from 'electron'
+import { isDockerWorkspaceRecipe } from '../../shared/docker-workspace-recipe'
 import type { Store } from '../persistence'
 import {
   listEphemeralVmRuntimes,
@@ -265,6 +266,16 @@ export function registerEphemeralVmRuntimeHandlers(store: Store): void {
         recipeResult: resolved.runtime.recipeResult
       })
       const payloadJson = JSON.stringify(payload, null, 2)
+      if (isDockerWorkspaceRecipe(resolved.recipe)) {
+        return {
+          runtimeId: resolved.runtime.id,
+          command: null,
+          payloadJson,
+          cleanupDisabled: false,
+          message:
+            'Use Retry cleanup in environment runtimes. Docker cleanup validates the original engine and container ownership before removal.'
+        }
+      }
       if (resolved.recipe.destroyDisabled || !resolved.recipe.destroy) {
         return {
           runtimeId: resolved.runtime.id,
