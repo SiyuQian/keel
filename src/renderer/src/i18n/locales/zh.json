@@ -19199,6 +19199,10 @@
     "openDefault": "在默认应用中打开"
   },
   "workflows": {
+    "fixReturn": "fix → review",
+    "planReturn": "plan-review → plan",
+    "fixLimit": "max_fix_rounds: {{count}}",
+    "planLimit": "max_plan_revisions: {{count}}",
     "yaml": "YAML",
     "skillVersion": " · 版本 {{version}}",
     "title": "工作流程",

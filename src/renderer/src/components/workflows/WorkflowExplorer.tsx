@@ -40,17 +40,19 @@ export function WorkflowExplorer({
   const [agentsVisible, setAgentsVisible] = useState(false)
   const inventory = useWorkflowInventory(runtimeTarget, discoveryTarget)
   const [query, setQuery] = useState('')
-  const [ownerId, setOwnerId] = useState<string | null>(null)
+  const [documentId, setDocumentId] = useState<string | null>(null)
   const skills = inventory.result?.skills ?? []
   const observation = inventory.result?.workflows
   const visible =
     observation?.entries.filter((entry) => {
       const owner = skills.find((skill) => skill.id === entry.ownerId)
-      return `${owner?.name} ${owner?.description} ${owner?.sourceLabel} ${entry.path}`
+      return `${entry.definition?.name ?? ''} ${entry.definition?.description ?? ''} ${owner?.name} ${owner?.description} ${owner?.sourceLabel} ${entry.path}`
         .toLowerCase()
         .includes(query.trim().toLowerCase())
     }) ?? []
-  const selected = visible.find((entry) => entry.ownerId === ownerId) ?? visible[0]
+  const selected =
+    visible.find((entry) => JSON.stringify([entry.ownerId, entry.path]) === documentId) ??
+    visible[0]
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
       <header className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
@@ -110,11 +112,12 @@ export function WorkflowExplorer({
                 const owner = skills.find((skill) => skill.id === entry.ownerId)
                 return (
                   <Button
-                    key={entry.ownerId}
-                    variant={entry === selected ? 'secondary' : 'ghost'}
+                    key={JSON.stringify([entry.ownerId, entry.path])}
+                    variant="ghost"
+                    data-current={entry === selected ? 'true' : undefined}
                     className="h-auto w-full justify-start whitespace-normal text-left"
                     aria-pressed={entry === selected}
-                    onClick={() => setOwnerId(entry.ownerId)}
+                    onClick={() => setDocumentId(JSON.stringify([entry.ownerId, entry.path]))}
                   >
                     <span className="min-w-0 py-2">
                       <span className="block break-all text-sm">
@@ -135,7 +138,7 @@ export function WorkflowExplorer({
             </nav>
           </aside>
           <div className="flex min-w-0 shrink-0 flex-col md:min-h-0 md:flex-1">
-            {inventory.loading ? (
+            {inventory.visibleLoading ? (
               <p
                 role="status"
                 className="flex items-center gap-2 p-5 text-sm text-muted-foreground"
@@ -189,7 +192,13 @@ export function WorkflowExplorer({
             ) : null}
             {selected && observation ? (
               <WorkflowDetail
-                key={`${selected.ownerId}:${inventory.result?.scannedAt}`}
+                key={JSON.stringify([
+                  runtimeTarget,
+                  discoveryTarget,
+                  selected.ownerId,
+                  selected.path,
+                  !!selected.definition
+                ])}
                 controller={controller}
                 entry={selected}
                 owner={skills.find((skill) => skill.id === selected.ownerId)}

@@ -2,6 +2,9 @@ import { SQLITE_RUNTIME_INCLUDE } from './vitest-sqlite-runtime-files.mjs'
 
 // SQLite publication, native bindings, worker IPC, socket liveness, and V8 retention use Node.
 export const NODE_RUNTIME_INCLUDE = [
+  'src/main/runtime/rpc/methods/orchestration/worker/worker-agent-preset.test.ts',
+  'src/main/runtime/rpc/methods/orchestration/federation/federated-structured-worker.test.ts',
+  'src/main/runtime/rpc/methods/orchestration/federation/federation-agent-preset.test.ts',
   'config/scripts/vitest-sqlite-runtime-boundary.test.ts',
   'config/scripts/skill-recipe-shell.test.mjs',
   'src/main/ssh/ssh-relay-endpoint-incumbent-shell.integration.test.ts',

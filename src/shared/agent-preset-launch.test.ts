@@ -30,6 +30,17 @@ it('accepts a bounded role snapshot on a stored session and rejects malformed sn
   expect(
     isPersistedAgentSessionRecord({
       ...record,
+      agentPreset: {
+        ...preset,
+        provider: 'claude',
+        model: 'retired-model',
+        effort: 'retired-effort'
+      }
+    })
+  ).toBe(true)
+  expect(
+    isPersistedAgentSessionRecord({
+      ...record,
       agentPreset: { ...preset, provider: 'claude', systemInstructions: 'x'.repeat(2000) }
     })
   ).toBe(true)
@@ -133,3 +144,18 @@ it('refuses unsafe Windows typed lines without restricting staged POSIX launches
   )
   expect(() => assertAgentPresetTerminalLine('linux', 'x'.repeat(16384))).not.toThrow()
 })
+
+it.each(['claude', 'codex'] as const)(
+  'refuses %s preset instructions on cmd with supported surface guidance',
+  (agent) => {
+    expect(
+      resolveAgentLaunchCommand({
+        agent,
+        cmdOverrides: {},
+        platform: 'win32',
+        shell: 'cmd',
+        agentPreset: { ...preset, provider: agent, systemInstructions: 'Hi & % ( ) "there"' }
+      })
+    ).toMatchObject({ ok: false, error: expect.stringMatching(/PowerShell.*native/) })
+  }
+)

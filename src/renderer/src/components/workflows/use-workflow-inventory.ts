@@ -15,22 +15,33 @@ export function useWorkflowInventory(
     result?: SkillDiscoveryResult
     error?: string
   } | null>(null)
+  const [loadingRequest, setLoadingRequest] = useState<{
+    runtimeTarget: RuntimeClientTarget
+    discoveryTarget?: SkillDiscoveryTarget
+    attempt: number
+  } | null>(null)
   useEffect(() => {
     if (!runtimeTarget) {
       return
     }
     let active = true
+    const timer = setTimeout(
+      () => setLoadingRequest({ runtimeTarget, discoveryTarget, attempt }),
+      200
+    )
     void discoverSkillsForRuntimeTarget(runtimeTarget, {
       ...discoveryTarget,
       includeWorkflows: true,
       ...(attempt > 0 ? { refresh: true } : {})
     }).then(
       (result) => {
+        clearTimeout(timer)
         if (active) {
           setScan({ runtimeTarget, discoveryTarget, attempt, result })
         }
       },
       (error: unknown) => {
+        clearTimeout(timer)
         if (active) {
           setScan({
             runtimeTarget,
@@ -43,6 +54,7 @@ export function useWorkflowInventory(
     )
     return () => {
       active = false
+      clearTimeout(timer)
     }
   }, [runtimeTarget, discoveryTarget, attempt])
   const current =
@@ -52,5 +64,17 @@ export function useWorkflowInventory(
       ? scan
       : null
   const refresh = useCallback(() => setAttempt((value) => value + 1), [])
-  return { result: current?.result, error: current?.error, loading: !current, refresh }
+  const previous =
+    scan?.runtimeTarget === runtimeTarget && scan?.discoveryTarget === discoveryTarget ? scan : null
+  return {
+    result: current ? current.result : previous?.result,
+    error: current?.error,
+    loading: !current,
+    visibleLoading:
+      !current &&
+      loadingRequest?.runtimeTarget === runtimeTarget &&
+      loadingRequest?.discoveryTarget === discoveryTarget &&
+      loadingRequest?.attempt === attempt,
+    refresh
+  }
 }

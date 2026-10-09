@@ -1,6 +1,7 @@
 import {
   type WorkerStartModeReceipt,
   decideWorkerStartMode,
+  downgradeWorkerStartModeForHost,
   readWorkerStartModeSettings
 } from '../../orchestration-worker-start-mode'
 import {
@@ -54,7 +55,9 @@ export async function assertAgentPresetExecutionRuntime(
   target: { repo?: string; worktree?: string },
   provider: 'claude' | 'codex',
   native = true
-): Promise<void> {
+): Promise<
+  Awaited<ReturnType<OrcaRuntimeService['getStructuredAgentSessionCreateSupport']>> | undefined
+> {
   if (target.repo) {
     const repo = await runtime.showRepo(target.repo)
     const projectRuntime = runtime.resolveProjectRuntimeForRepo(repo)
@@ -77,7 +80,9 @@ export async function assertAgentPresetExecutionRuntime(
         `Agent presets require a native session on the owning execution runtime (${support.reason ?? 'unsupported'}).`
       )
     }
+    return support
   }
+  return undefined
 }
 
 export function agentPresetWorkerMode(runtime: OrcaRuntimeService, preset: AgentPreset) {
@@ -97,13 +102,19 @@ export async function prepareAgentPresetWorkerMode(args: {
     return args.fallback
   }
   const mode = agentPresetWorkerMode(args.runtime, args.preset)
-  await assertAgentPresetExecutionRuntime(
+  const support = await assertAgentPresetExecutionRuntime(
     args.runtime,
     args.target,
     args.preset.provider,
-    mode.mode === 'structured'
+    false
   )
-  return mode
+  const settled = args.target.worktree
+    ? downgradeWorkerStartModeForHost(mode, support ?? null)
+    : mode
+  if (settled.mode === 'terminal' || args.target.repo) {
+    args.runtime.preflightOrchestrationAgentPresetTerminal(args.preset)
+  }
+  return settled
 }
 
 export async function prepareFederatedAgentPreset(
@@ -114,7 +125,11 @@ export async function prepareFederatedAgentPreset(
   if (!preset) {
     return false
   }
-  const native = agentPresetWorkerMode(runtime, preset).mode === 'structured'
-  await assertAgentPresetExecutionRuntime(runtime, target, preset.provider, native)
-  return native
+  const mode = await prepareAgentPresetWorkerMode({
+    runtime,
+    preset,
+    target,
+    fallback: agentPresetWorkerMode(runtime, preset)
+  })
+  return mode.mode === 'structured'
 }

@@ -13,7 +13,7 @@ const identifier = z
     (value) => !value.includes('\0') && !['__proto__', 'constructor', 'prototype'].includes(value)
   )
 const presetId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/)
-export const AgentPresetSchema = z
+export const StoredAgentPresetSchema = z
   .object({
     id: presetId,
     name: z.string().trim().min(1).max(128),
@@ -26,27 +26,27 @@ export const AgentPresetSchema = z
     effort: z.string().trim().min(1).max(512).optional()
   })
   .strict()
-  .superRefine((preset, ctx) => {
-    if (!preset.effort) {
-      return
-    }
-    const catalog = getAgentSessionOptionLaunchCatalog(preset.provider)
-    const model = preset.model && catalog ? findCatalogModel(catalog, preset.model) : undefined
-    const option =
-      findCatalogOption(model || undefined, 'effort') ??
-      (!model ? catalog?.unknownModelOptions?.find((entry) => entry.id === 'effort') : undefined)
-    if (
-      !preset.model ||
-      option?.kind.type !== 'select' ||
-      !option.kind.choices.some((choice) => choice.value === preset.effort)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['effort'],
-        message: 'Choose a model and a supported effort.'
-      })
-    }
-  })
+export const AgentPresetSchema = StoredAgentPresetSchema.superRefine((preset, ctx) => {
+  if (!preset.effort) {
+    return
+  }
+  const catalog = getAgentSessionOptionLaunchCatalog(preset.provider)
+  const model = preset.model && catalog ? findCatalogModel(catalog, preset.model) : undefined
+  const option =
+    findCatalogOption(model || undefined, 'effort') ??
+    (!model ? catalog?.unknownModelOptions?.find((entry) => entry.id === 'effort') : undefined)
+  if (
+    !preset.model ||
+    option?.kind.type !== 'select' ||
+    !option.kind.choices.some((choice) => choice.value === preset.effort)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['effort'],
+      message: 'Choose a model and a supported effort.'
+    })
+  }
+})
 export type AgentPreset = z.infer<typeof AgentPresetSchema>
 export const AgentPresetsSchema = z
   .array(AgentPresetSchema)
@@ -105,7 +105,7 @@ export function normalizeAgentPresets(value: unknown): AgentPreset[] | undefined
   }
   const found = new Set<string>()
   return value.slice(0, 64).flatMap((candidate) => {
-    const parsed = AgentPresetSchema.safeParse(candidate)
+    const parsed = StoredAgentPresetSchema.safeParse(candidate)
     if (!parsed.success || found.has(parsed.data.id)) {
       return []
     }
@@ -117,8 +117,49 @@ export function normalizeWorkflowAgentBindings(value: unknown): WorkflowAgentBin
   if (value === undefined) {
     return undefined
   }
-  const parsed = WorkflowAgentBindingsSchema.safeParse(value)
-  return parsed.success ? parsed.data : {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .slice(0, 128)
+      .flatMap(([key, candidate]) => {
+        if (
+          !identifier.safeParse(key).success ||
+          !candidate ||
+          typeof candidate !== 'object' ||
+          Array.isArray(candidate)
+        ) {
+          return []
+        }
+        const binding: WorkflowAgentBinding = {}
+        if ('defaultAgentId' in candidate) {
+          const parsed = presetId.safeParse(candidate.defaultAgentId)
+          if (parsed.success) {
+            binding.defaultAgentId = parsed.data
+          }
+        }
+        if (
+          'stepAgentIds' in candidate &&
+          candidate.stepAgentIds &&
+          typeof candidate.stepAgentIds === 'object' &&
+          !Array.isArray(candidate.stepAgentIds)
+        ) {
+          binding.stepAgentIds = Object.fromEntries(
+            Object.entries(candidate.stepAgentIds)
+              .slice(0, 128)
+              .flatMap(([step, id]) => {
+                const parsedStep = identifier.safeParse(step)
+                const parsedId = presetId.safeParse(id)
+                return parsedStep.success && parsedId.success
+                  ? [[parsedStep.data, parsedId.data]]
+                  : []
+              })
+          )
+        }
+        return [[key, binding]]
+      })
+  )
 }
 export function resolveWorkflowAgent(
   presets: readonly AgentPreset[],

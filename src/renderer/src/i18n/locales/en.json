@@ -19267,6 +19267,10 @@
     "openDefault": "Open in Default App"
   },
   "workflows": {
+    "fixReturn": "fix → review",
+    "planReturn": "plan-review → plan",
+    "fixLimit": "max_fix_rounds: {{count}}",
+    "planLimit": "max_plan_revisions: {{count}}",
     "yaml": "YAML",
     "skillVersion": " · v{{version}}",
     "back": "Back to Skills",

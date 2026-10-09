@@ -13,8 +13,6 @@ export function workflowSkillCandidates(
     (skill) =>
       skill.installed &&
       (skill.name === reference ||
-        (skill.name === name &&
-          skill.sourceKind === 'plugin' &&
-          skill.sourceLabel === `Claude plugin ${namespace}`))
+        (skill.name === name && skill.pluginNamespaces?.includes(namespace)))
   )
 }

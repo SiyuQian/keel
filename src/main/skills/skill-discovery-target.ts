@@ -12,7 +12,9 @@ import { stablePathId } from './skill-discovery-sources'
 import { skillScanSourceKinds } from './skill-discovery-source-filter'
 import { getRepoExecutionHostId } from '../../shared/execution-host'
 import { isSkillRootUnavailableError, SkillScanCoalescer } from './skill-scan-coalescer'
-import { observeWorkflows } from './workflow-discovery'
+import { workflowScanBudget } from './workflow-scan-budget'
+import { clearWorkflowPluginMetadataCache } from './claude-plugin-skill-sources'
+import { clearWorkflowDiscoveryCaches, observeWorkflows } from './workflow-discovery'
 
 // Why: on WSL the unit of cost is the wsl.exe boot plus one `find` per skill, so
 // the whole result is what must be shared. The native path shares at root level
@@ -23,11 +25,25 @@ const MAX_CACHED_SKILL_TARGETS = 32
 type TargetScanObservation =
   | { kind: 'native'; result: SkillDiscoveryResult }
   | { kind: 'wsl'; observation: WslSkillDiscoveryObservation }
+const workflowTargets = new SkillScanCoalescer<SkillDiscoveryResult>(32, Date.now, {
+  timeoutMs: 10000,
+  maximumPending: 8,
+  budget: workflowScanBudget
+})
+const workflowSkillTargets = new SkillScanCoalescer<TargetScanObservation>(32, Date.now, {
+  timeoutMs: 8000,
+  maximumPending: 8,
+  budget: workflowScanBudget
+})
 const targetScans = new SkillScanCoalescer<TargetScanObservation>(MAX_CACHED_SKILL_TARGETS)
 
 /** Drop every shared scan; used when a skill update run has rewritten disk. */
 export function clearSkillDiscoveryCaches(): void {
   targetScans.clear()
+  workflowTargets.clear()
+  workflowSkillTargets.clear()
+  clearWorkflowDiscoveryCaches()
+  clearWorkflowPluginMetadataCache()
   clearSkillRootScanCache()
 }
 
@@ -161,55 +177,81 @@ export async function discoverSkillsOnTarget(
 ): Promise<SkillDiscoveryResult> {
   const refresh = options.refresh === true
   try {
-    const outcome = await targetScans.run(
-      scanKey(target, repos, options.providerRootOverrides),
-      { ttlMs: target.kind === 'wsl' ? WSL_RESULT_TTL_MS : 0, refresh },
-      async (): Promise<TargetScanObservation> => {
-        if (target.kind === 'wsl') {
-          return {
-            kind: 'wsl',
-            observation: await discoverSkillObservationInWsl({
-              distro: target.distro,
-              homeDir: target.homeDir,
-              ...(target.cwd ? { cwd: target.cwd } : {}),
-              sourceKinds: skillScanSourceKinds(target.sourceKinds),
-              providerRootOverrides: options.providerRootOverrides
-            })
+    const scan = async (): Promise<SkillDiscoveryResult> => {
+      const outcome = await (options.includeWorkflows ? workflowSkillTargets : targetScans).run(
+        `${scanKey(target, repos, options.providerRootOverrides)}:${options.includeWorkflows === true}`,
+        {
+          ttlMs: target.kind === 'wsl' && !options.includeWorkflows ? WSL_RESULT_TTL_MS : 0,
+          refresh
+        },
+        async (): Promise<TargetScanObservation> => {
+          if (target.kind === 'wsl') {
+            return {
+              kind: 'wsl',
+              observation: await discoverSkillObservationInWsl({
+                distro: target.distro,
+                homeDir: target.homeDir,
+                ...(target.cwd ? { cwd: target.cwd } : {}),
+                sourceKinds: skillScanSourceKinds(target.sourceKinds),
+                providerRootOverrides: options.providerRootOverrides
+              })
+            }
           }
+          const result = await (target.cwd
+            ? discoverSkills({
+                repos: [],
+                cwd: target.cwd,
+                refresh,
+                ...(options.includeWorkflows ? { includeUserPlugins: true } : {}),
+                ...(target.names ? { names: target.names } : {}),
+                ...(target.sourceKinds ? { sourceKinds: target.sourceKinds } : {}),
+                providerRootOverrides: options.providerRootOverrides
+              })
+            : discoverSkills({
+                repos: [...repos],
+                refresh,
+                ...(options.includeWorkflows ? { includeUserPlugins: true } : {}),
+                ...(target.names ? { names: target.names } : {}),
+                ...(target.sourceKinds ? { sourceKinds: target.sourceKinds } : {}),
+                providerRootOverrides: options.providerRootOverrides
+              }))
+          return { kind: 'native', result }
         }
-        const result = await (target.cwd
-          ? discoverSkills({
-              repos: [],
-              cwd: target.cwd,
-              refresh,
-              ...(target.names ? { names: target.names } : {}),
-              ...(target.sourceKinds ? { sourceKinds: target.sourceKinds } : {}),
-              providerRootOverrides: options.providerRootOverrides
-            })
-          : discoverSkills({
-              repos: [...repos],
-              refresh,
-              ...(target.names ? { names: target.names } : {}),
-              ...(target.sourceKinds ? { sourceKinds: target.sourceKinds } : {}),
-              providerRootOverrides: options.providerRootOverrides
-            }))
-        return { kind: 'native', result }
-      }
-    )
-    const result =
-      outcome.value.kind === 'wsl'
-        ? projectWslSkillDiscovery(outcome.value.observation, target.sourceKinds, target.names)
-        : outcome.value.result
-    if (!options.includeWorkflows) {
+      )
+      const result =
+        outcome.value.kind === 'wsl'
+          ? projectWslSkillDiscovery(outcome.value.observation, target.sourceKinds, target.names)
+          : outcome.value.result
       return result
     }
-    const workflows = await observeWorkflows(result.skills, target)
-    if (result.sources.some((source) => source.skippedReason === 'unavailable')) {
-      workflows.issues.push(
-        'Partial inventory: some Skill locations are unavailable. Refresh to retry.'
-      )
+    if (!options.includeWorkflows) {
+      return await scan()
     }
-    return { ...result, workflows }
+    const result = (
+      await workflowTargets.run(
+        JSON.stringify([
+          scanKey(target, repos, options.providerRootOverrides),
+          target.names?.toSorted() ?? null,
+          target.sourceKinds?.toSorted() ?? null
+        ]),
+        { ttlMs: 0, refresh, replacePending: refresh },
+        async (signal) => {
+          const result = await scan()
+          signal.throwIfAborted()
+          const workflows = await observeWorkflows(result.skills, target, refresh)
+          signal.throwIfAborted()
+          return { ...result, workflows }
+        }
+      )
+    ).value
+    const issues = [...(result.workflows?.issues ?? [])]
+    if (result.sources.some((source) => source.skippedReason === 'unavailable')) {
+      issues.push('Partial inventory: some Skill locations are unavailable. Refresh to retry.')
+    }
+    return {
+      ...result,
+      ...(result.workflows ? { workflows: { ...result.workflows, issues } } : {})
+    }
   } catch (error) {
     if (!isSkillRootUnavailableError(error)) {
       throw error

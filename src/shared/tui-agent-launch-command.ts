@@ -35,6 +35,12 @@ export function resolveAgentLaunchCommand(args: {
   sessionOptionsOverrideAgentArgs?: boolean
   isRemote?: boolean
 }): ResolvedAgentLaunchCommand {
+  if (args.agentPreset && args.shell === 'cmd') {
+    return {
+      ok: false,
+      error: 'Agent preset instructions are unsupported on cmd. Use PowerShell or a native session.'
+    }
+  }
   const override = args.cmdOverrides[args.agent]
   const baseCommand =
     override ||

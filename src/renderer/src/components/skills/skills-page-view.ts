@@ -1,3 +1,2 @@
-/** The page lists either the skills on this machine or the links you published
- *  from them. Both are inventories, so they share the page's scroll and search. */
+/** Skills and shared links share scroll and search. Workflows use a separate full-page view. */
 export type SkillsPageView = 'skills' | 'shared' | 'workflows'

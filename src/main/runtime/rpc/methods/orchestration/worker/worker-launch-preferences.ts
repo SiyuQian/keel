@@ -151,7 +151,9 @@ export function assertWorkerLaunchPreferencesCreateTerminal(args: {
   if (args.terminal && (args.model || args.effort || args.agentPreset)) {
     throw new OrchestrationError(
       'invalid_argument',
-      '--model and --effort cannot be applied when reusing an existing terminal.'
+      args.agentPreset
+        ? '--agent-preset requires a fresh session and cannot reuse --terminal.'
+        : '--model and --effort cannot be applied when reusing an existing terminal.'
     )
   }
 }

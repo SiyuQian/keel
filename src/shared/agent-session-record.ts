@@ -1,6 +1,6 @@
 import { isAgentSessionOptions } from './native-chat-session-options'
 export { isAgentSessionOptions } from './native-chat-session-options'
-import { AgentPresetSchema, type AgentPreset } from './agent-presets'
+import { StoredAgentPresetSchema, type AgentPreset } from './agent-presets'
 import { isAgentSessionRewindRecord, type AgentSessionRewindRecord } from './agent-session-rewind'
 import { isAgentSessionLaunchArgs } from './agent-session-launch-args'
 import { isAgentSessionConversationName } from './agent-session-conversation-name'
@@ -351,7 +351,7 @@ export function isPersistedAgentSessionRecord(
     (record.launchDirectory === undefined ||
       isBoundedString(record.launchDirectory, MAX_PATH_LENGTH)) &&
     (record.agentPreset === undefined ||
-      (AgentPresetSchema.safeParse(record.agentPreset).success &&
+      (StoredAgentPresetSchema.safeParse(record.agentPreset).success &&
         record.agentPreset.provider === record.provider)) &&
     (record.options === undefined || isAgentSessionOptions(record.options)) &&
     (record.rewind === undefined || isAgentSessionRewindRecord(record.rewind)) &&

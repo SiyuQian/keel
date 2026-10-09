@@ -3,10 +3,36 @@ import {
   AgentPresetsSchema,
   getAgentPresets,
   normalizeAgentPresets,
+  normalizeWorkflowAgentBindings,
   resolveWorkflowAgent
 } from './agent-presets'
 
 describe('Agent presets and workflow bindings', () => {
+  it('retains bounded saved instructions when the current catalog rejects their effort', () => {
+    const saved = {
+      id: 'r',
+      name: 'Review',
+      provider: 'codex',
+      systemInstructions: 'Keep my instructions.',
+      model: 'retired-model',
+      effort: 'retired-effort'
+    }
+    expect(normalizeAgentPresets([saved])).toEqual([saved])
+    expect(AgentPresetsSchema.safeParse([saved]).success).toBe(false)
+    expect(normalizeAgentPresets([{ ...saved, provider: 'unknown' }])).toEqual([])
+  })
+  it('retains unaffected workflows and steps when stored binding entries are malformed', () => {
+    expect(
+      normalizeWorkflowAgentBindings({
+        good: { defaultAgentId: 'planning' },
+        broken: 'invalid',
+        partial: { defaultAgentId: 4, stepAgentIds: { review: 'deleted', implement: 7 } }
+      })
+    ).toEqual({
+      good: { defaultAgentId: 'planning' },
+      partial: { stepAgentIds: { review: 'deleted' } }
+    })
+  })
   it('keeps provider defaults unset and preserves an intentionally empty list', () => {
     const defaults = getAgentPresets(undefined)
     expect(defaults.map((preset) => preset.id)).toEqual(['planning', 'implementation', 'review'])

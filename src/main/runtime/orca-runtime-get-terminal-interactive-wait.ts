@@ -23,6 +23,8 @@ import { parseWslUncPath } from '../../shared/wsl-paths'
 import { resolveLocalProjectRuntimeForRepo } from '../project-runtime-git-options'
 
 import { prepareOpenCodeModelStartupInputs } from '../opencode/opencode-model-startup-plan'
+import type { AgentPreset } from '../../shared/agent-presets'
+import { preflightRuntimeAgentPresetTerminal } from './runtime-agent-terminal-startup'
 import { resolveAgentStartupPlanInputs } from '../../shared/agent-startup-plan-inputs'
 
 export class OrcaRuntimeWithGetTerminalInteractiveWait extends OrcaRuntimeWithAdoptTerminalOrphansFromInventory {
@@ -278,6 +280,14 @@ export class OrcaRuntimeWithGetTerminalInteractiveWait extends OrcaRuntimeWithAd
     } catch {
       return false
     }
+  }
+
+  preflightOrchestrationAgentPresetTerminal(preset: AgentPreset): void {
+    preflightRuntimeAgentPresetTerminal(
+      this.requireStore().getSettings(),
+      preset,
+      this.toAgentSessionOptions(preset)
+    )
   }
 
   validateOrchestrationAgentLauncher(agent: TuiAgent): void {

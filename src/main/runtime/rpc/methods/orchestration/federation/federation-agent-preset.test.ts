@@ -33,7 +33,10 @@ describe('federated Agent preset sessions', () => {
   })
   async function start(reason?: 'remote' | 'wsl', native = true) {
     db = new OrchestrationDb(':memory:')
-    const runtime = new OrcaRuntimeService()
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: launch preflight reads only the host settings from this fixture store.
+    const runtime = new OrcaRuntimeService({
+      getSettings: () => createGlobalSettingsFixture({ agentPresets: [role] })
+    } as never)
     runtime.setOrchestrationDb(db)
     vi.spyOn(runtime, 'getClientSettings').mockReturnValue(
       new RuntimeClientSettingsController({

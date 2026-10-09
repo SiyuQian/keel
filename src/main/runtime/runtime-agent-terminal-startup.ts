@@ -1,3 +1,7 @@
+import type { AgentPreset } from '../../shared/agent-presets'
+import { resolveAgentLaunchCommand } from '../../shared/tui-agent-launch-command'
+import { resolveStartupShell } from '../../shared/tui-agent-startup-shell'
+import { OrchestrationError } from './orchestration/orchestration-error'
 import { assertAgentPresetTerminalLine } from '../../shared/agent-preset-instructions'
 import type { SessionOptionValue } from '../../shared/native-chat-session-options'
 import type { RuntimeStore } from './runtime-store-contract'
@@ -96,5 +100,36 @@ export async function buildRuntimeAgentTerminalStartupOptions(
     startupCommandDelivery: startupPlan.startupCommandDelivery,
     // A bare command the user typed stays out of launch accounting, as before.
     ...(opts.startupAgent ? { telemetry: agentStartedTelemetry(agent, opts.launchSource) } : {})
+  }
+}
+
+export function preflightRuntimeAgentPresetTerminal(
+  settings: ReturnType<RuntimeStore['getSettings']>,
+  preset: AgentPreset,
+  sessionOptions: Record<string, SessionOptionValue> | undefined,
+  platform: NodeJS.Platform = process.platform
+): void {
+  const inputs = resolveAgentStartupPlanInputs({
+    agent: preset.provider,
+    settings,
+    platform,
+    isRemote: false,
+    agentPreset: preset,
+    sessionOptions
+  })
+  const resolved = resolveAgentLaunchCommand({
+    ...inputs,
+    shell: resolveStartupShell(platform, inputs.shell)
+  })
+  if (!resolved.ok) {
+    throw new OrchestrationError('capability_unsupported', resolved.error)
+  }
+  try {
+    assertAgentPresetTerminalLine(platform, resolved.command)
+  } catch (error) {
+    throw new OrchestrationError(
+      'capability_unsupported',
+      error instanceof Error ? error.message : String(error)
+    )
   }
 }

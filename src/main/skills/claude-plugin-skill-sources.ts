@@ -1,6 +1,9 @@
 import { open, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, sep, type posix } from 'node:path'
 import { stablePathId, type SkillScanRoot } from './skill-discovery-sources'
+import { SkillScanCoalescer } from './skill-scan-coalescer'
+import { workflowScanBudget } from './workflow-scan-budget'
+import { pluginNamespace } from './skill-plugin-provenance'
 import { stripUnsafeDisplayCharacters } from '../../shared/skill-display-text'
 
 const MAX_PLUGIN_METADATA_BYTES = 4 * 1024 * 1024
@@ -171,28 +174,37 @@ export function resolveClaudePluginSkillSources(args: {
       continue
     }
     const skillsPath = pathApi.join(install.installPath, 'skills')
-    if (!roots.has(skillsPath)) {
+    const namespace = pluginNamespace(pluginId.split('@')[0])
+    const existing = roots.get(skillsPath)
+    if (existing && namespace && !existing.pluginNamespaces?.includes(namespace)) {
+      existing.pluginNamespaces = [...(existing.pluginNamespaces ?? []), namespace]
+    }
+    if (!existing) {
       roots.set(skillsPath, {
         id: `claude-plugin-${stablePathId(skillsPath)}`,
         label: `Claude plugin ${safePluginLabel(pluginId, pathApi)}`,
         path: skillsPath,
         sourceKind: 'plugin',
         providers: ['claude'],
-        owner: 'claude'
+        owner: 'claude',
+        ...(namespace ? { pluginNamespaces: [namespace] } : {})
       })
     }
   }
   return [...roots.values()]
 }
 
-async function readMetadataFile(pathValue: string): Promise<string | null> {
+async function readMetadataFile(pathValue: string, signal?: AbortSignal): Promise<string | null> {
   try {
+    signal?.throwIfAborted()
     const fileStat = await stat(pathValue)
+    signal?.throwIfAborted()
     if (!fileStat.isFile() || fileStat.size > MAX_PLUGIN_METADATA_BYTES) {
       return null
     }
     const file = await open(pathValue, 'r')
     try {
+      signal?.throwIfAborted()
       const buffer = Buffer.alloc(fileStat.size)
       const { bytesRead } = await file.read(buffer, 0, buffer.length, 0)
       return buffer.toString('utf8', 0, bytesRead)
@@ -204,13 +216,32 @@ async function readMetadataFile(pathValue: string): Promise<string | null> {
   }
 }
 
+const metadataReads = new SkillScanCoalescer<string | null>(32, Date.now, {
+  timeoutMs: 2000,
+  maximumPending: 64,
+  budget: workflowScanBudget
+})
+export function clearWorkflowPluginMetadataCache(): void {
+  metadataReads.clear()
+}
+
 export async function discoverClaudePluginSkillSources(args: {
   homeDir: string
   cwd: string
+  bounded?: boolean
+  refresh?: boolean
 }): Promise<SkillScanRoot[]> {
   const paths = getClaudePluginMetadataPaths(args.homeDir, args.cwd)
   const [installedPlugins, ...settings] = await Promise.all(
-    [paths.installedPlugins, ...paths.settings].map(readMetadataFile)
+    [paths.installedPlugins, ...paths.settings].map((path) =>
+      args.bounded
+        ? metadataReads
+            .run(path, { ttlMs: 0, refresh: args.refresh }, (signal) =>
+              readMetadataFile(path, signal)
+            )
+            .then((outcome) => outcome.value)
+        : readMetadataFile(path)
+    )
   )
   return resolveClaudePluginSkillSources({
     metadata: { installedPlugins, settings },

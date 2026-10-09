@@ -121,10 +121,10 @@ export async function prepareStructuredAgentSessionCreateForWorktree(args: {
     ...(hostLaunchDirectory ? { hostLaunchDirectory } : {}),
     attachParams: {
       ...resolvedAttach,
+      ...(args.agentPreset ? { agentPreset: { ...args.agentPreset } } : {}),
       // After the fingerprint, deliberately: `attachFingerprintFields` excludes options because
       // they are the session's initial state, not its identity, so a retry that re-resolves them
       // must replay rather than conflict.
-      ...(args.agentPreset ? { agentPreset: { ...args.agentPreset } } : {}),
       ...(args.options ? { options: args.options } : {}),
       ...(args.tabId ? { surfaceTabId: args.tabId } : {}),
       provider: resolved.provider,

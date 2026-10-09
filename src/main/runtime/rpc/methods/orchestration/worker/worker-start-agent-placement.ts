@@ -139,7 +139,7 @@ async function placeInCreatedWorktree(
       args.runtime,
       { worktree: `id:${worktree.id}` },
       args.launchPreferences.agentPreset.provider,
-      args.mode.mode === 'structured'
+      false
     )
   }
   const mode = await resolveWorkerStartModeOnHost(args.runtime, args.mode, worktree.id, args.agent)

@@ -202,7 +202,7 @@ export function applyAgentSessionReservation(
     (request.agentPreset !== undefined &&
       !isDeepStrictEqual(existing.agentPreset, request.agentPreset))
   ) {
-    // Why: location, provider, and account are the session identity; changing one is a fork.
+    // Why: location, provider, account and role snapshot are the session identity; changing one is a fork.
     throw agentSessionRefusalError('agent_session_conflict', { reason: 'identityMismatch' })
   }
   // A create may take over only a record that never bound a conversation and whose last
