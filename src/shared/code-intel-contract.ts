@@ -1,5 +1,8 @@
 export const CODE_INTEL_MAX_LOCATIONS = 1000
 export const CODE_INTEL_MAX_PREVIEW_LEN = 240
+export const CODE_INTEL_MAX_BUFFERS = 64
+export const CODE_INTEL_MAX_BUFFER_TEXT = 4_000_000
+export const CODE_INTEL_MAX_TOTAL_TEXT = 8_000_000
 
 export type CodeIntelMethod = 'definition' | 'references'
 

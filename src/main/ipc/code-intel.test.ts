@@ -49,9 +49,10 @@ const storeInput = {
   getSettings: () => ({ ...getDefaultSettings('/tmp'), experimentalCodeIntelligence: true }),
   getRepos: () => [],
   getFolderWorkspaces: () => [folder],
-  getProjectGroups: () => []
+  getProjectGroups: () => [{ id: 'g' }],
+  getWorktreeMeta: () => undefined
 }
-// oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the filesystem boundary is mocked; the handler only calls the four supplied Store methods.
+// oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the filesystem boundary is mocked; the handler only calls the supplied Store methods.
 const store = storeInput as unknown as Store
 beforeEach(() => {
   vi.restoreAllMocks()

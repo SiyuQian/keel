@@ -8,7 +8,11 @@ import { LazyWorkerThreadHost, type WorkerThreadFactory } from '../lazy-worker-t
 import { currentWorkerEntryLayout, resolveWorkerThreadEntryPath } from '../worker-thread-entry-path'
 
 type Response = { id: number; result: CodeIntelResult }
-type Pending = { resolve: (result: CodeIntelResult) => void; cleanup: () => void }
+type Pending = {
+  resolve: (result: CodeIntelResult) => void
+  cleanup: () => void
+  request: { id: number; method: CodeIntelMethod; params: CodeIntelRequest }
+}
 let singleton: CodeIntelSidecarClient | null = null
 export function getCodeIntelSidecar(): CodeIntelSidecarClient {
   return (singleton ??= new CodeIntelSidecarClient())
@@ -20,6 +24,7 @@ export function shutdownCodeIntelSidecar(): void {
 
 export class CodeIntelSidecarClient {
   private nextId = 1
+  private activeId: number | null = null
   private readonly pending = new Map<number, Pending>()
   private readonly host: LazyWorkerThreadHost<Response>
   constructor(
@@ -42,15 +47,21 @@ export class CodeIntelSidecarClient {
           return
         }
         this.pending.delete(response.id)
+        this.activeId = null
         pending.cleanup()
         pending.resolve(response.result)
+        this.dispatchNext()
         if (!this.pending.size) {
           this.host.scheduleIdleTeardown()
         }
       },
       onError: (error) => this.retire('worker-failed', error.message),
       onExit: (code) => this.retire('worker-exited', `Code intelligence worker exited (${code}).`),
-      onUnavailable: () => {}
+      onUnavailable: (error) =>
+        console.warn(
+          '[code-intel] worker unavailable:',
+          error instanceof Error ? error.message : String(error)
+        )
     })
   }
   query(
@@ -79,27 +90,48 @@ export class CodeIntelSidecarClient {
     }
     const id = this.nextId++
     return new Promise((resolve) => {
-      // Termination interrupts synchronous TS work; a cancel message cannot interrupt its event loop.
-      const onAbort = (): void =>
-        this.retire('cancelled', 'Request cancelled. Worker retirement requested.')
+      const onAbort = (): void => {
+        const pending = this.pending.get(id)
+        if (!pending) {
+          return
+        }
+        pending.resolve({ status: 'error', code: 'cancelled', message: 'Request cancelled.' })
+        // Active synchronous work retains its deadline and slot until completion; queued work never starts.
+        if (id !== this.activeId) {
+          this.pending.delete(id)
+          pending.cleanup()
+        }
+      }
       const timer = setTimeout(
         () => this.retire('timeout', 'Code intelligence timed out. Worker retirement requested.'),
         30_000
       )
       this.pending.set(id, {
         resolve,
+        request: { id, method, params },
         cleanup: () => {
           clearTimeout(timer)
           signal?.removeEventListener('abort', onAbort)
         }
       })
       signal?.addEventListener('abort', onAbort, { once: true })
-      try {
-        worker.postMessage({ id, method, params })
-      } catch (error) {
-        this.retire('worker-failed', error instanceof Error ? error.message : String(error))
-      }
+      this.dispatchNext()
     })
+  }
+  private dispatchNext(): void {
+    if (this.activeId !== null) {
+      return
+    }
+    const next = this.pending.values().next().value
+    if (!next) {
+      return
+    }
+    this.activeId = next.request.id
+    try {
+      this.host.ensure()?.postMessage(next.request)
+    } catch (error) {
+      this.retire('worker-failed', error instanceof Error ? error.message : String(error))
+    }
   }
   shutdown(): void {
     this.retire('shutdown', 'Code intelligence shut down.')
@@ -111,5 +143,6 @@ export class CodeIntelSidecarClient {
       pending.resolve({ status: 'error', code, message })
     }
     this.pending.clear()
+    this.activeId = null
   }
 }

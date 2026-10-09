@@ -45,7 +45,7 @@ describe('monaco-code-intel-providers', () => {
     expect(request.bufferVersion).toBe(4)
   })
 
-  it('omits buffer text for a clean file so the sidecar reads it from disk', () => {
+  it('uses the clean model text so query positions match the analyzed version', () => {
     const request = buildReferenceRequest({
       workspaceId: 'r::/repo',
       executionHostId: 'local',
@@ -56,7 +56,7 @@ describe('monaco-code-intel-providers', () => {
       bufferVersion: 1,
       isDirty: false
     })
-    expect(request.bufferText).toBeUndefined()
+    expect(request.bufferText).toBe('whole file contents')
   })
 
   it('converts a 0-based contract location to a 1-based Monaco range', () => {

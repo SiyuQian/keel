@@ -1,7 +1,11 @@
-import type {
-  CodeIntelMethod,
-  CodeIntelResult,
-  CodeIntelIpcArgs
+import { translate } from '@/i18n/i18n'
+import {
+  CODE_INTEL_MAX_BUFFERS,
+  CODE_INTEL_MAX_BUFFER_TEXT,
+  CODE_INTEL_MAX_TOTAL_TEXT,
+  type CodeIntelMethod,
+  type CodeIntelResult,
+  type CodeIntelIpcArgs
 } from '../../../shared/code-intel-contract'
 
 export type CodeIntelClientArgs = Omit<CodeIntelIpcArgs, 'requestId'>
@@ -21,10 +25,31 @@ export async function queryCodeIntel(
   token?: CodeIntelCancellation
 ): Promise<CodeIntelResult> {
   if (token?.isCancellationRequested) {
-    return { status: 'error', code: 'cancelled', message: 'request cancelled' }
+    return {
+      status: 'error',
+      code: 'cancelled',
+      message: translate('codeIntel.result.cancelled', 'request cancelled')
+    }
   }
   if (args.executionHostId !== 'local' || args.runtimeEnvironmentId || args.connectionId) {
     return { status: 'unsupported', reason: 'remote-runtime' }
+  }
+  const buffers = args.buffers ?? []
+  if (
+    buffers.length > CODE_INTEL_MAX_BUFFERS ||
+    (args.bufferText?.length ?? 0) > CODE_INTEL_MAX_BUFFER_TEXT ||
+    buffers.some((buffer) => buffer.text.length > CODE_INTEL_MAX_BUFFER_TEXT) ||
+    buffers.reduce((sum, buffer) => sum + buffer.text.length, args.bufferText?.length ?? 0) >
+      CODE_INTEL_MAX_TOTAL_TEXT
+  ) {
+    return {
+      status: 'error',
+      code: 'buffer-limit',
+      message: translate(
+        'codeIntel.result.bufferLimit',
+        'Too many or oversized open buffers. Save or close other files before navigating.'
+      )
+    }
   }
   const bridge = window.api.codeIntel
   const requestId = nextRequestId++

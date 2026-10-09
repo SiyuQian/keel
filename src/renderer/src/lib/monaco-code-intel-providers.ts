@@ -4,7 +4,7 @@ import type { WorktreeContext } from './code-intel-editor-context'
 import * as monaco from 'monaco-editor'
 import { isOkResult, type CodeIntelResult } from '../../../shared/code-intel-contract'
 import { queryCodeIntel, type CodeIntelClientArgs } from './code-intel-client'
-import { notifyIfRemoteUnsupported } from './code-intel-remote-unsupported-toast'
+import { notifyCodeIntelResult } from './code-intel-result-toast'
 
 const LANGUAGES = ['typescript', 'javascript'] as const
 
@@ -23,7 +23,7 @@ export function buildReferenceRequest(ctx: RequestContext): CodeIntelClientArgs 
     relativePath: toPosixRelative(ctx.worktreeRoot, ctx.filePath),
     position: { line: ctx.monacoPosition.lineNumber - 1, character: ctx.monacoPosition.column - 1 },
     bufferVersion: ctx.bufferVersion,
-    bufferText: ctx.isDirty === false ? undefined : ctx.bufferText,
+    bufferText: ctx.bufferText,
     connectionId: ctx.connectionId,
     workspaceRoot: ctx.worktreeRoot,
     workspaceId: ctx.workspaceId,
@@ -100,7 +100,7 @@ export function registerCodeIntelProviders(
           return []
         }
         const result = await queryCodeIntel('definition', buildArgs(ctx, model, position), token)
-        notifyIfRemoteUnsupported(result)
+        notifyCodeIntelResult(result)
         if (
           token.isCancellationRequested ||
           !isEnabled() ||
@@ -123,7 +123,7 @@ export function registerCodeIntelProviders(
           return []
         }
         const result = await queryCodeIntel('references', buildArgs(ctx, model, position), token)
-        notifyIfRemoteUnsupported(result)
+        notifyCodeIntelResult(result)
         if (
           token.isCancellationRequested ||
           !isEnabled() ||

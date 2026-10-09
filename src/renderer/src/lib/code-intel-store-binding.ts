@@ -3,6 +3,7 @@ import { useAppStore } from '@/store'
 import { getEditorModelOwnerKey } from '@/components/editor/editor-model-owner'
 import { toEditorModelUri } from '@/components/editor/editor-model-uri'
 import { splitWorktreeIdForFilesystem } from '../../../shared/worktree/id'
+import { parseWorkspaceKey } from '../../../shared/workspace-scope'
 import { relativePathInsideRoot } from '../../../shared/cross-platform-path'
 import { detectLanguage } from './language-detect'
 import { scheduleEditorLineReveal } from '@/store/slices/editor/focus/editor-focus-reveal'
@@ -23,13 +24,15 @@ export function resolveCodeIntelContext(
     return null
   }
   const owner = getEditorModelOwnerKey(file, state)
-  const folder = file.worktreeId.startsWith('folder:')
-    ? state.folderWorkspaces.find(
-        (folder) =>
-          folder.id === file.worktreeId.slice(7) &&
-          (owner !== '' || (folder.executionHostId ?? 'local') === 'local')
-      )
-    : null
+  const scope = parseWorkspaceKey(file.worktreeId)
+  const folder =
+    scope?.type === 'folder'
+      ? state.folderWorkspaces.find(
+          (folder) =>
+            folder.id === scope.folderWorkspaceId &&
+            (owner !== '' || (folder.executionHostId ?? 'local') === 'local')
+        )
+      : null
   const root = folder?.folderPath ?? splitWorktreeIdForFilesystem(file.worktreeId)?.worktreePath
   if (!root) {
     return null
@@ -39,12 +42,10 @@ export function resolveCodeIntelContext(
   for (const candidate of state.openFiles) {
     if (
       candidate.mode !== 'edit' ||
+      candidate.id === file.id ||
       candidate.worktreeId !== file.worktreeId ||
       getEditorModelOwnerKey(candidate, state) !== owner
     ) {
-      continue
-    }
-    if (!candidate.isDirty && state.editorDrafts[candidate.id] === undefined) {
       continue
     }
     if (relativePathInsideRoot(root, candidate.filePath) === null) {
@@ -53,6 +54,9 @@ export function resolveCodeIntelContext(
     const bufferModel = monaco.editor.getModel(
       monaco.Uri.parse(toEditorModelUri(candidate.filePath, owner))
     )
+    if (!bufferModel && !candidate.isDirty && state.editorDrafts[candidate.id] === undefined) {
+      continue
+    }
     const text = bufferModel?.getValue() ?? state.editorDrafts[candidate.id]
     if (text === undefined) {
       continue
@@ -129,7 +133,14 @@ export function installCodeIntelStoreBinding(): void {
       if (!sourceFile || resource.scheme !== 'file' || resource.fragment !== model.uri.fragment) {
         return false
       }
-      const target = resource.fsPath
+      const target =
+        state.openFiles.find(
+          (file) =>
+            file.mode === 'edit' &&
+            file.worktreeId === sourceFile.worktreeId &&
+            toEditorModelUri(file.filePath, getEditorModelOwnerKey(file, state)) ===
+              resource.toString()
+        )?.filePath ?? resource.fsPath
       const fileId = state.openFile(
         {
           filePath: target,

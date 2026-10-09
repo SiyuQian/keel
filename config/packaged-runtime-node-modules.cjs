@@ -477,7 +477,7 @@ function prunePackagedParcelWatcher(resourcesDir, electronPlatformName, electron
   }
 }
 
-// Why type declarations: they are compile-time only; the packaged app never resolves them.
+// Type declarations are compile-time input except typescript-api/lib standard libraries, read by navigation at runtime.
 // Why source maps: they embed the original sources (megabytes for @linear/sdk alone) and
 // nothing in the packaged app turns on Node's source-map support, so they are never read.
 // Orca's own main-process maps live outside node_modules and ship as a separate release artifact.

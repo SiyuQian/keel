@@ -85,7 +85,7 @@ it('ships all dirty buffers in the same workspace and discards results after ano
     [second.id]: 'import { a } from "./a"'
   }
   const context = resolveCodeIntelContext(model('file:///repo/a.ts'))
-  expect(context?.buffers.map((buffer) => buffer.filePath)).toEqual(['/repo/a.ts', '/repo/b.ts'])
+  expect(context?.buffers.map((buffer) => buffer.filePath)).toEqual(['/repo/b.ts'])
   expect(context?.isCurrent()).toBe(true)
   fixture.state.editorDrafts = { ...fixture.state.editorDrafts, [second.id]: 'changed' }
   expect(context?.isCurrent()).toBe(false)
@@ -136,5 +136,53 @@ it('excludes dirty buffers from a different workspace even on the same host', ()
   fixture.state.editorDrafts = { [file.id]: 'export const a = 1', [other.id]: 'secret' }
   expect(
     resolveCodeIntelContext(model('file:///repo/a.ts'))?.buffers.map((buffer) => buffer.filePath)
-  ).toEqual(['/repo/a.ts'])
+  ).toEqual([])
+})
+
+it('reuses an open Windows target without changing its drive spelling', () => {
+  vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => {
+    fn(0)
+    return 1
+  })
+  const source = { ...file, id: 'a', filePath: 'C:/repo/a.ts', worktreeId: 'r::C:/repo' }
+  const target = { ...source, id: 'b', filePath: 'C:/repo/b.ts' }
+  fixture.state.openFiles = [source, target]
+  installCodeIntelStoreBinding()
+  const opener = fixture.opener
+  if (
+    !opener ||
+    typeof opener !== 'object' ||
+    !('openCodeEditor' in opener) ||
+    typeof opener.openCodeEditor !== 'function'
+  ) {
+    throw new Error('Missing editor opener')
+  }
+  expect(
+    opener.openCodeEditor(
+      { getModel: () => model('file:///c%3A/repo/a.ts') },
+      URI.file('C:/repo/b.ts')
+    )
+  ).toBe(true)
+  expect(fixture.state.openFile).toHaveBeenCalledWith(
+    expect.objectContaining({ filePath: target.filePath }),
+    expect.anything()
+  )
+  vi.unstubAllGlobals()
+})
+
+it('analyzes a clean open target model and rejects its result after a reload', () => {
+  const second = { ...file, id: '/repo/b.ts', filePath: '/repo/b.ts', isDirty: false }
+  fixture.state.openFiles = [file, second]
+  let version = 1
+  fixture.models.set(URI.file(second.filePath).toString(), {
+    getValue: () => 'export const b = 1',
+    getVersionId: () => version,
+    isDisposed: () => false
+  })
+  const context = resolveCodeIntelContext(model('file:///repo/a.ts'))
+  expect(context?.buffers).toEqual([
+    { filePath: second.filePath, text: 'export const b = 1', version: 1 }
+  ])
+  version = 2
+  expect(context?.isCurrent()).toBe(false)
 })

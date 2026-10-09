@@ -14,15 +14,54 @@ const params = {
   bufferVersion: 1,
   position: { line: 0, character: 0 }
 }
-it('retires the worker on cancellation so CPU work cannot accumulate', async () => {
+it('cancels only the hovered request while preserving concurrent work', async () => {
   const worker = new Transport()
   const client = new CodeIntelSidecarClient(() => worker)
   const abort = new AbortController()
-  const pending = client.query('definition', params, abort.signal)
+  const a = client.query('definition', params, abort.signal)
+  const b = client.query('references', params)
+  const first = worker.postMessage.mock.calls[0][0]
   abort.abort()
-  expect(await pending).toMatchObject({ status: 'error', code: 'cancelled' })
-  expect(worker.terminate).toHaveBeenCalledOnce()
+  expect(await a).toMatchObject({ code: 'cancelled' })
+  expect(worker.terminate).not.toHaveBeenCalled()
+  worker.emit('message', {
+    id: first.id,
+    result: { status: 'ok', bufferVersion: 1, locations: [], truncated: false }
+  })
+  const second = worker.postMessage.mock.calls.at(-1)?.[0]
+  worker.emit('message', {
+    id: second.id,
+    result: { status: 'ok', bufferVersion: 1, locations: [], truncated: false }
+  })
+  expect(await b).toMatchObject({ status: 'ok' })
   client.shutdown()
+})
+it('does not execute cancelled queued hover work', async () => {
+  const worker = new Transport()
+  const client = new CodeIntelSidecarClient(() => worker)
+  const a = client.query('references', params)
+  const abort = new AbortController()
+  const b = client.query('definition', params, abort.signal)
+  abort.abort()
+  expect(await b).toMatchObject({ code: 'cancelled' })
+  expect(worker.postMessage).toHaveBeenCalledOnce()
+  worker.emit('message', {
+    id: worker.postMessage.mock.calls[0][0].id,
+    result: { status: 'ok', bufferVersion: 1, locations: [], truncated: false }
+  })
+  expect(await a).toMatchObject({ status: 'ok' })
+  expect(worker.postMessage).toHaveBeenCalledOnce()
+  client.shutdown()
+})
+it('reports worker startup failures', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const client = new CodeIntelSidecarClient(() => {
+    throw new Error('Missing worker entry')
+  })
+  expect(await client.query('definition', params)).toMatchObject({ code: 'worker-unavailable' })
+  expect(warn).toHaveBeenCalledWith('[code-intel] worker unavailable:', 'Missing worker entry')
+  client.shutdown()
+  warn.mockRestore()
 })
 it('removes abort listeners after successful responses', async () => {
   const worker = new Transport()
@@ -80,7 +119,7 @@ it('waits for retirement before permitting a replacement worker', async () => {
   const client = new CodeIntelSidecarClient(factory)
   const abort = new AbortController()
   const pending = client.query('definition', params, abort.signal)
-  abort.abort()
+  client.shutdown()
   await pending
   expect(await client.query('definition', params)).toMatchObject({ code: 'worker-unavailable' })
   expect(factory).toHaveBeenCalledOnce()
@@ -93,7 +132,8 @@ it('waits for retirement before permitting a replacement worker', async () => {
   await replacement
 })
 
-it('actually terminates a busy CPU worker after cancellation', async () => {
+it('bounds cancelled CPU work by the original deadline', async () => {
+  vi.useFakeTimers()
   const worker = new Worker(
     "require('node:worker_threads').parentPort.postMessage('busy'); while (true) {}",
     { eval: true }
@@ -105,6 +145,8 @@ it('actually terminates a busy CPU worker after cancellation', async () => {
   const pending = client.query('definition', params, abort.signal)
   abort.abort()
   expect(await pending).toMatchObject({ code: 'cancelled' })
+  expect(terminated).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(30_000)
   const result = terminated.mock.results[0]
   if (result?.type !== 'return') {
     throw new Error('Termination was not requested.')
@@ -112,4 +154,5 @@ it('actually terminates a busy CPU worker after cancellation', async () => {
   await result.value
   expect(worker.threadId).toBe(-1)
   client.shutdown()
+  vi.useRealTimers()
 })

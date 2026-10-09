@@ -467,9 +467,10 @@ export type GlobalSettings = NativeChatGlobalSettings & {
   mobilePairingCustomAddresses?: string[]
   /** Name this runtime reports to paired clients; empty uses the host's detected name. */
   machineName: string
+  /** Opt-in semantic navigation for local TypeScript and JavaScript projects. */
+  experimentalCodeIntelligence?: boolean
   /** Experimental: floating animated pet in the bottom-right corner. Opt-in cosmetic;
    *  off never mounts the overlay, and toggling takes effect instantly (renderer-side). */
-  experimentalCodeIntelligence?: boolean
   experimentalPet: boolean
   /** Legacy persisted key from before the sidekick -> pet rename; read only during migration, new writes use experimentalPet. */
   experimentalSidekick?: boolean

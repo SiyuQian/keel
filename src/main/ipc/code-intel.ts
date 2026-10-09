@@ -32,6 +32,7 @@ export async function handleCodeIntelQuery(
   const root = resolveCodeIntelWorkspace(
     {
       repos: store.getRepos(),
+      getWorktreeMeta: (id) => store.getWorktreeMeta(id),
       folderWorkspaces: store.getFolderWorkspaces(),
       projectGroups: store.getProjectGroups()
     },

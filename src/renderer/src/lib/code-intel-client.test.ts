@@ -107,3 +107,29 @@ describe('queryCodeIntel', () => {
     expect(result.status).toBe('error')
   })
 })
+
+it('rejects oversized overlay snapshots before IPC without truncating them', async () => {
+  const bridge = vi.fn()
+  stubApi(bridge)
+  const args = {
+    workspaceId: 'r::/repo',
+    workspaceRoot: '/repo',
+    executionHostId: 'local',
+    filePath: '/repo/a.ts',
+    relativePath: 'a.ts',
+    position: { line: 0, character: 0 },
+    bufferVersion: 1
+  }
+  const buffers = Array.from({ length: 65 }, (_, i) => ({
+    filePath: `/repo/${i}.ts`,
+    text: '',
+    version: 1
+  }))
+  expect(await queryCodeIntel('definition', { ...args, buffers })).toMatchObject({
+    code: 'buffer-limit'
+  })
+  expect(
+    await queryCodeIntel('definition', { ...args, bufferText: 'x'.repeat(4_000_001) })
+  ).toMatchObject({ code: 'buffer-limit' })
+  expect(bridge).not.toHaveBeenCalled()
+})

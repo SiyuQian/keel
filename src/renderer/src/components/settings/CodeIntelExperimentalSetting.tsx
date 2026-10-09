@@ -4,6 +4,7 @@ import { Label } from '../ui/label'
 import { SearchableSetting } from './SearchableSetting'
 import { SettingsSwitch } from './SettingsFormControls'
 import type { SettingsSearchEntry } from './settings-search'
+import { translateSearchKeyword } from './settings-search-keywords'
 
 export function getCodeIntelSearchEntry(): SettingsSearchEntry {
   return {
@@ -12,7 +13,29 @@ export function getCodeIntelSearchEntry(): SettingsSearchEntry {
       'settings.experimental.codeIntel.description',
       'Project-aware definitions and references for local TypeScript and JavaScript files.'
     ),
-    keywords: ['typescript', 'javascript', 'definition', 'references', 'semantic', 'experimental']
+    keywords: [
+      ...translateSearchKeyword(
+        'settings.experimental.codeIntel.keywords.typescript',
+        'typescript'
+      ),
+      ...translateSearchKeyword(
+        'settings.experimental.codeIntel.keywords.javascript',
+        'javascript'
+      ),
+      ...translateSearchKeyword(
+        'settings.experimental.codeIntel.keywords.definition',
+        'definition'
+      ),
+      ...translateSearchKeyword(
+        'settings.experimental.codeIntel.keywords.references',
+        'references'
+      ),
+      ...translateSearchKeyword('settings.experimental.codeIntel.keywords.semantic', 'semantic'),
+      ...translateSearchKeyword(
+        'settings.experimental.codeIntel.keywords.experimental',
+        'experimental'
+      )
+    ]
   }
 }
 export function CodeIntelExperimentalSetting({

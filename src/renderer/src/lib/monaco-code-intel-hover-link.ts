@@ -4,14 +4,7 @@ import { resolveCodeIntelWorktree, isCodeIntelEnabled } from './code-intel-edito
 import { queryCodeIntel } from './code-intel-client'
 import { buildReferenceRequest } from './monaco-code-intel-providers'
 
-// Why: Monaco's native ctrl/cmd-hover "go to definition" link only renders its
-// underline after it can resolve a preview model for the target. In the
-// standalone editor that resolution rejects when the target file has no open
-// model — which is the common case for an import — so cross-file targets never
-// get the clickable affordance even though ctrl+click still navigates (the
-// reveal command queries definitions independently). This installs our own
-// underline driven by the code-intel sidecar so imports get the VSCode-style
-// feedback regardless of whether the target is open.
+// Monaco's standalone hover cannot underline targets without an open preview model.
 
 const QUERY_DEBOUNCE_MS = 120
 const SUPPORTED_LANGUAGES = new Set(['typescript', 'javascript'])
@@ -34,6 +27,7 @@ export function installCodeIntelHoverLink(
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   // Bumped to invalidate any in-flight async query whose result is now stale.
   let queryToken = 0
+  let cancellation: monaco.CancellationTokenSource | null = null
 
   function clearLink(): void {
     if (activeKey === null) {
@@ -49,6 +43,9 @@ export function installCodeIntelHoverLink(
       debounceTimer = null
     }
     queryToken += 1
+    cancellation?.cancel()
+    cancellation?.dispose()
+    cancellation = null
   }
 
   function underline(line: number, word: monaco.editor.IWordAtPosition, key: string): void {
@@ -80,6 +77,8 @@ export function installCodeIntelHoverLink(
     const token = queryToken
     debounceTimer = setTimeout(() => {
       debounceTimer = null
+      const source = new monaco.CancellationTokenSource()
+      cancellation = source
       const args = buildReferenceRequest({
         ...ctx,
         worktreeRoot: ctx.worktreeRoot,
@@ -90,7 +89,7 @@ export function installCodeIntelHoverLink(
         connectionId: ctx.connectionId,
         isDirty: ctx.isDirty
       })
-      void queryCodeIntel('definition', args).then((result) => {
+      void queryCodeIntel('definition', args, source.token).then((result) => {
         if (
           token !== queryToken ||
           !isCodeIntelEnabled() ||

@@ -23,16 +23,22 @@ it.each([
 it('refuses an SSH workspace even when a renderer claims it is local', () => {
   expect(
     resolveCodeIntelWorkspace(
-      { repos: [{ id: 'r', connectionId: 'remote' }], folderWorkspaces: [], projectGroups: [] },
+      {
+        getWorktreeMeta: () => undefined,
+        repos: [{ id: 'r', connectionId: 'remote' }],
+        folderWorkspaces: [],
+        projectGroups: []
+      },
       args
     )
   ).toBeNull()
 })
 it('supports local folder workspaces and pins the stored root', () => {
   const store = {
+    getWorktreeMeta: () => undefined,
     repos: [],
     folderWorkspaces: [{ id: 'f', folderPath: '/actual', projectGroupId: 'g' }],
-    projectGroups: []
+    projectGroups: [{ id: 'g' }]
   }
   expect(
     resolveCodeIntelWorkspace(store, { ...args, workspaceId: 'folder:f', workspaceRoot: '/actual' })
@@ -45,11 +51,39 @@ it('rejects ambiguous repository owners', () => {
   expect(
     resolveCodeIntelWorkspace(
       {
+        getWorktreeMeta: () => undefined,
         repos: [{ id: 'r' }, { id: 'r', connectionId: 'ssh' }],
         folderWorkspaces: [],
         projectGroups: []
       },
       args
+    )
+  ).toBeNull()
+})
+
+it('rejects declared remote worktree ownership despite a local repo', () => {
+  expect(
+    resolveCodeIntelWorkspace(
+      {
+        repos: [{ id: 'r' }],
+        folderWorkspaces: [],
+        projectGroups: [],
+        getWorktreeMeta: () => ({ hostId: 'ssh:remote' })
+      },
+      args
+    )
+  ).toBeNull()
+})
+it('rejects a folder whose project group is missing', () => {
+  expect(
+    resolveCodeIntelWorkspace(
+      {
+        repos: [],
+        folderWorkspaces: [{ id: 'f', folderPath: '/repo', projectGroupId: 'missing' }],
+        projectGroups: [],
+        getWorktreeMeta: () => undefined
+      },
+      { ...args, workspaceId: 'folder:f' }
     )
   ).toBeNull()
 })
