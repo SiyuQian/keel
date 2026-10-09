@@ -19199,6 +19199,8 @@
     "openDefault": "在默认应用中打开"
   },
   "workflows": {
+    "yaml": "YAML",
+    "skillVersion": " · 版本 {{version}}",
     "title": "工作流程",
     "back": "返回 Skills",
     "refresh": "刷新",
@@ -19238,6 +19240,8 @@
     "sourceUnavailable": "本次读取中无法获取 Skill 原文。"
   },
   "agentPresets": {
+    "id": "标识符：",
+    "updateRequired": "请更新所属运行时以配置 Agent 预设。",
     "title": "Agent 角色",
     "manage": "管理 Agent",
     "back": "返回工作流",

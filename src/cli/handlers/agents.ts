@@ -53,7 +53,9 @@ const show: CommandHandler = async (ctx) => {
 }
 const workflows: CommandHandler = async (ctx) => {
   const saved = await settings(ctx)
-  const inventory = await ctx.client.call<SkillDiscoveryResult>('skills.discover')
+  const inventory = await ctx.client.call<SkillDiscoveryResult>('skills.discover', {
+    includeWorkflows: true
+  })
   const entries =
     inventory.result.workflows?.entries.map((entry) => ({
       id: entry.ownerId,
@@ -71,7 +73,9 @@ const resolve: CommandHandler = async (ctx) => {
   const saved = await settings(ctx)
   const workflowId = getRequiredStringFlag(ctx.flags, 'workflow')
   const stepId = getRequiredStringFlag(ctx.flags, 'step')
-  const inventory = await ctx.client.call<SkillDiscoveryResult>('skills.discover')
+  const inventory = await ctx.client.call<SkillDiscoveryResult>('skills.discover', {
+    includeWorkflows: true
+  })
   const workflow = inventory.result.workflows?.entries.find((entry) => entry.ownerId === workflowId)
   if (!workflow?.definition?.stages.some((stage) => stage.id === stepId)) {
     throw new RuntimeClientError(

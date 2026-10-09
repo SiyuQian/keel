@@ -84,7 +84,7 @@ export function WorkflowDetail({
             <TabsTrigger value="skills" disabled={!definition}>
               {translate('workflows.skills', 'Skills')}
             </TabsTrigger>
-            <TabsTrigger value="yaml">YAML</TabsTrigger>
+            <TabsTrigger value="yaml">{translate('workflows.yaml', 'YAML')}</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="flow" className="md:min-h-0 md:overflow-hidden">

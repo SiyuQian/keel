@@ -75,5 +75,54 @@
     "text": "sidebar",
     "dynamic": false,
     "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowAgentBinding.tsx",
+    "kind": "jsx-text",
+    "text": "orca orchestration worker-start --spec &lt;task&gt; --agent-preset",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowDetail.tsx",
+    "kind": "jsx-text",
+    "text": "max_plan_revisions:",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowDetail.tsx",
+    "kind": "jsx-text",
+    "text": "max_fix_rounds:",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowDetail.tsx",
+    "kind": "jsx-text",
+    "text": "plan-review → plan",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowDetail.tsx",
+    "kind": "jsx-expression",
+    "text": "· max_plan_revisions:",
+    "dynamic": true,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowDetail.tsx",
+    "kind": "jsx-text",
+    "text": "fix → review",
+    "dynamic": false,
+    "count": 1
+  },
+  {
+    "filePath": "src/renderer/src/components/workflows/WorkflowDetail.tsx",
+    "kind": "jsx-expression",
+    "text": "· max_fix_rounds:",
+    "dynamic": true,
+    "count": 1
   }
 ]

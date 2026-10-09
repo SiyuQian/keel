@@ -30,8 +30,22 @@ export function AgentPresetEditor({
   controller: AgentPresetSettingsController
 }): React.JSX.Element {
   const { presets, settings, saving, error, save } = controller
-  const [draft, setDraft] = useState<AgentPreset | null>(null)
-  const [validation, setValidation] = useState<string | null>(null)
+  const [draftState, setDraftState] = useState<{
+    owner: typeof controller.owner
+    value: AgentPreset
+  } | null>(null)
+  const [validationState, setValidationState] = useState<{
+    owner: typeof controller.owner
+    value: string
+  } | null>(null)
+  const draft = draftState?.owner === controller.owner ? draftState.value : null
+  const validation = validationState?.owner === controller.owner ? validationState.value : null
+  function setDraft(value: AgentPreset | null) {
+    setDraftState(value ? { owner: controller.owner, value } : null)
+  }
+  function setValidation(value: string | null) {
+    setValidationState(value ? { owner: controller.owner, value } : null)
+  }
   const catalog = draft ? getAgentSessionOptionLaunchCatalog(draft.provider) : null
   const model = draft?.model && catalog ? findCatalogModel(catalog, draft.model) : undefined
   const effort =
@@ -104,7 +118,7 @@ export function AgentPresetEditor({
             </p>
           ) : null}
         </nav>
-        {draft ? (
+        {draft && settings ? (
           <form
             className="min-w-0 space-y-4"
             onSubmit={(event) => {
@@ -134,7 +148,9 @@ export function AgentPresetEditor({
                 onChange={(event) => setDraft({ ...draft, name: event.target.value })}
               />
             </div>
-            <p className="break-all font-mono text-xs text-muted-foreground">ID: {draft.id}</p>
+            <p className="break-all font-mono text-xs text-muted-foreground">
+              {translate('agentPresets.id', 'ID:')} {draft.id}
+            </p>
             <div className="space-y-2">
               <Label>{translate('agentPresets.provider', 'Provider')}</Label>
               <Select
@@ -155,8 +171,12 @@ export function AgentPresetEditor({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="claude">Claude</SelectItem>
-                  <SelectItem value="codex">Codex</SelectItem>
+                  <SelectItem value="claude">
+                    {translate('auto.lib.agent.catalog.0708ed89f1', 'Claude')}
+                  </SelectItem>
+                  <SelectItem value="codex">
+                    {translate('auto.lib.agent.catalog.760bc6883d', 'Codex')}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

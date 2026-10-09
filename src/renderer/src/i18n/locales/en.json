@@ -19267,6 +19267,8 @@
     "openDefault": "Open in Default App"
   },
   "workflows": {
+    "yaml": "YAML",
+    "skillVersion": " · v{{version}}",
     "back": "Back to Skills",
     "title": "Workflows",
     "refresh": "Refresh",
@@ -19306,6 +19308,8 @@
     "yamlUnavailable": "Original YAML is unavailable. Refresh to retry the read."
   },
   "agentPresets": {
+    "id": "ID:",
+    "updateRequired": "Update the owning runtime to configure Agent presets.",
     "title": "Agents",
     "manage": "Manage Agents",
     "back": "Back to workflow",
