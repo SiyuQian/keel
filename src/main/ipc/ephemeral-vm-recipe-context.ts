@@ -1,3 +1,9 @@
+import {
+  DOCKER_WORKSPACE_RECIPE,
+  isDockerWorkspaceRecipe
+} from '../../shared/docker-workspace-recipe'
+import { getRepoExecutionHostId } from '../../shared/execution-host'
+import { resolveLocalProjectRuntimeForRepo } from '../local-project-runtime-resolution'
 import type { Store } from '../persistence'
 import { loadHooks } from '../hooks'
 import type { EphemeralVmRecipeDoctorResult } from '../../shared/ephemeral-vm-recipes'
@@ -41,7 +47,7 @@ export function listRecipes(
       message: `Repo not found: ${repoId}`
     }
   }
-  if (repo.connectionId) {
+  if (getRepoExecutionHostId(repo) !== 'local') {
     return {
       status: 'error',
       repoPath: repo.path,
@@ -54,7 +60,7 @@ export function listRecipes(
   return {
     status: 'ok',
     repoPath: repo.path,
-    recipes: combineEphemeralVmRecipes(hooks?.environmentRecipes ?? [], pluginRecipes),
+    recipes: recipesForRepo(store, repo, hooks?.environmentRecipes ?? [], pluginRecipes),
     diagnostics: hooks?.environmentRecipeDiagnostics ?? []
   }
 }
@@ -65,14 +71,17 @@ export function listRecipeCatalog(
 ): EphemeralVmRecipeCatalogEntry[] {
   return store
     .getRepos()
-    .filter((repo) => isGitRepoKind(repo) && !isFolderRepo(repo) && !repo.connectionId)
+    .filter(
+      (repo) =>
+        isGitRepoKind(repo) && !isFolderRepo(repo) && getRepoExecutionHostId(repo) === 'local'
+    )
     .map((repo) => {
       const hooks = loadHooks(repo.path)
       return {
         repoId: repo.id,
         repoName: repo.displayName,
         repoPath: repo.path,
-        recipes: combineEphemeralVmRecipes(hooks?.environmentRecipes ?? [], pluginRecipes),
+        recipes: recipesForRepo(store, repo, hooks?.environmentRecipes ?? [], pluginRecipes),
         diagnostics: hooks?.environmentRecipeDiagnostics ?? []
       }
     })
@@ -84,7 +93,7 @@ export function getRecipeRepo(store: Store, repoId: string): RecipeRepoResult {
   if (!repo || isFolderRepo(repo)) {
     return failedRecipeRepo(null, `Repo not found: ${repoId}`)
   }
-  if (repo.connectionId) {
+  if (getRepoExecutionHostId(repo) !== 'local') {
     return failedRecipeRepo(repo.path, 'Ephemeral VM recipes run on the local desktop host in v1.')
   }
   return { ok: true, repo }
@@ -142,7 +151,10 @@ export function combineEphemeralVmRecipes(
   pluginRecipes: readonly OrcaVmRecipe[]
 ): OrcaVmRecipe[] {
   const repoIds = new Set(repoRecipes.map((recipe) => recipe.id))
-  return [...repoRecipes, ...pluginRecipes.filter((recipe) => !repoIds.has(recipe.id))]
+  const combined = [...repoRecipes, ...pluginRecipes.filter((recipe) => !repoIds.has(recipe.id))]
+  return combined.some((recipe) => recipe.id === DOCKER_WORKSPACE_RECIPE.id)
+    ? combined
+    : [...combined, DOCKER_WORKSPACE_RECIPE]
 }
 
 function failedRecipeRepo(repoPath: string | null, message: string): RecipeRepoResult {
@@ -163,4 +175,17 @@ function failedRecipeRepo(repoPath: string | null, message: string): RecipeRepoR
       ]
     })
   }
+}
+
+function recipesForRepo(
+  store: Store,
+  repo: Extract<RecipeRepoResult, { ok: true }>['repo'],
+  repoRecipes: readonly OrcaVmRecipe[],
+  pluginRecipes: readonly OrcaVmRecipe[]
+): OrcaVmRecipe[] {
+  const recipes = combineEphemeralVmRecipes(repoRecipes, pluginRecipes)
+  const runtime = resolveLocalProjectRuntimeForRepo(store, repo)
+  return runtime && (runtime.status === 'repair-required' || runtime.runtime.kind === 'wsl')
+    ? recipes.filter((recipe) => !isDockerWorkspaceRecipe(recipe))
+    : recipes
 }

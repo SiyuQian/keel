@@ -65,6 +65,7 @@ async function getCleanupError(
 ): Promise<string | null> {
   try {
     const cleanup = await runEphemeralVmRecipeCleanup({
+      userDataPath: args.userDataPath,
       repoPath: args.repoPath,
       recipe: args.recipe,
       context: start.context,
