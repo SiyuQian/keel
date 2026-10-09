@@ -69,7 +69,7 @@ describe('fixed workspace reference stacks', () => {
         referenceItems={refs}
         issue={null}
         linearIssue={null}
-        review={null}
+        review={referenceReview(1)}
         comment={null}
       />
     )

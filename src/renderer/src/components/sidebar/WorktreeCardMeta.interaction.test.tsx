@@ -434,6 +434,14 @@ describe('sidebar review badge interactions', () => {
               linearIssue={null}
               comment={null}
               review={{ ...reviewFixture, provider }}
+              referenceItems={[
+                {
+                  provider,
+                  type: provider === 'gitlab' ? 'mr' : 'pr',
+                  number: reviewFixture.number,
+                  url: reviewFixture.url
+                }
+              ]}
             />
           </div>
         )
@@ -476,6 +484,13 @@ describe('sidebar review badge interactions', () => {
               linearIssue={null}
               comment={null}
               review={{ ...reviewFixture, provider, url: undefined }}
+              referenceItems={[
+                {
+                  provider,
+                  type: provider === 'gitlab' ? 'mr' : 'pr',
+                  number: reviewFixture.number
+                }
+              ]}
             />
           </div>
         )

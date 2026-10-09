@@ -76,6 +76,7 @@ export const WorktreeCardMetaBadges = React.forwardRef<
   }
 
   const reviewItems = referenceItems?.filter((item) => item.type !== 'issue') ?? []
+  const stackedReviewItems = review && reviewItems.length === 1 ? [] : reviewItems
   const linearItems = referenceItems?.filter((item) => item.provider === 'linear') ?? []
   const jiraItems = referenceItems?.filter((item) => item.provider === 'jira') ?? []
   const issueItems =
@@ -169,13 +170,13 @@ export const WorktreeCardMetaBadges = React.forwardRef<
           </MetaIconBadge>
         )
       )}
-      {linearItems.length || reviewItems.length ? (
+      {linearItems.length || stackedReviewItems.length ? (
         <span
           className="inline-flex shrink-0 items-center gap-1.5"
           data-workspace-reference-groups=""
         >
           <WorktreeReferenceStack items={linearItems} details={referenceDetails} />
-          <WorktreeReferenceStack items={reviewItems} details={referenceDetails} />
+          <WorktreeReferenceStack items={stackedReviewItems} details={referenceDetails} />
         </span>
       ) : (
         linearIssue && (
@@ -190,7 +191,7 @@ export const WorktreeCardMetaBadges = React.forwardRef<
           </MetaIconBadge>
         )
       )}
-      {!reviewItems.length &&
+      {!stackedReviewItems.length &&
         review &&
         (review.url ? (
           <Button asChild variant="outline" size="xs">
