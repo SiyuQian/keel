@@ -28,6 +28,7 @@ const PACKAGED_RUNTIME_PACKAGE_ROOTS = [
   'qrcode',
   'ssh2',
   'tweetnacl',
+  'typescript-api',
   'ws',
   'yaml',
   'zod'
@@ -129,7 +130,8 @@ function readPackage(packageName, fromDir = projectDir) {
   const packageDir = realpathSync(dirname(packageJsonPath))
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'))
   return {
-    name: packageJson.name ?? packageName,
+    // The alias must match the worker's require('typescript-api') at runtime.
+    name: packageName === 'typescript-api' ? packageName : (packageJson.name ?? packageName),
     packageDir,
     dependencies: Object.keys(packageJson.dependencies ?? {})
   }
@@ -475,7 +477,7 @@ function prunePackagedParcelWatcher(resourcesDir, electronPlatformName, electron
   }
 }
 
-// Why type declarations: they are compile-time only; the packaged app never resolves them.
+// Type declarations are compile-time input except typescript-api/lib standard libraries, read by navigation at runtime.
 // Why source maps: they embed the original sources (megabytes for @linear/sdk alone) and
 // nothing in the packaged app turns on Node's source-map support, so they are never read.
 // Orca's own main-process maps live outside node_modules and ship as a separate release artifact.
@@ -490,7 +492,16 @@ function prunePackagedRuntimeTypeAndSourceMapArtifacts(resourcesDir) {
   if (!existsSync(nodeModulesDir)) {
     return
   }
-  pruneMatchingFiles(nodeModulesDir, isPrunableTypeOrSourceMapArtifact)
+  pruneMatchingFiles(nodeModulesDir, (filename, entryPath) => {
+    // Standard library declarations are runtime input for semantic navigation.
+    if (
+      dirname(entryPath) === join(nodeModulesDir, 'typescript-api', 'lib') &&
+      /^lib(?:\.[\w.]+)?\.d\.ts$/.test(filename)
+    ) {
+      return false
+    }
+    return isPrunableTypeOrSourceMapArtifact(filename)
+  })
 }
 
 function prunePackagedSherpaOnnx(resourcesDir, electronPlatformName) {
@@ -608,7 +619,7 @@ function pruneMatchingFiles(directory, shouldPrune) {
     const entryPath = join(directory, entry.name)
     if (entry.isDirectory()) {
       pruneMatchingFiles(entryPath, shouldPrune)
-    } else if (entry.isFile() && shouldPrune(entry.name)) {
+    } else if (entry.isFile() && shouldPrune(entry.name, entryPath)) {
       rmSync(entryPath, { force: true })
     }
   }

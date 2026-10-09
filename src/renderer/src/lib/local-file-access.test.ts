@@ -237,6 +237,7 @@ const USER_NAMED_TAB_OPENERS = [
   'components/tab-bar/tab-create-entry-absolute-file.ts',
   'components/terminal-pane/terminal-file-open-routing.ts',
   'hooks/useGlobalFileDrop.ts',
+  'lib/code-intel-store-binding.ts',
   'lib/floating-workspace-tab-creation.ts',
   'lib/open-document-in-floating-workspace.ts',
   'store/slices/editor/actions/markdown-link-action.ts'

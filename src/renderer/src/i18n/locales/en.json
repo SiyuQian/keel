@@ -319,7 +319,22 @@
       "fileExplorer": "file explorer"
     },
     "followSymlinkedDirectories": "Follow symlinked directories",
-    "followSymlinkedDirectoriesDescription": "Search linked folders in Quick Open and expand local linked folders in File Explorer."
+    "followSymlinkedDirectoriesDescription": "Search linked folders in Quick Open and expand local linked folders in File Explorer.",
+    "experimental": {
+      "codeIntel": {
+        "title": "Code intelligence",
+        "description": "Project-aware definitions and references for local TypeScript and JavaScript files.",
+        "copy": "Enable Go to Definition and Find References for local TS/JS projects, including TSX/JSX. Requires a tsconfig or jsconfig. Remote and SSH files are not supported.",
+        "keywords": {
+          "typescript": "typescript",
+          "javascript": "javascript",
+          "definition": "definition",
+          "references": "references",
+          "semantic": "semantic",
+          "experimental": "experimental"
+        }
+      }
+    }
   },
   "menu": {
     "checkForUpdates": "Check for Updates...",
@@ -19265,5 +19280,14 @@
     "unavailable": "Unable to play this media file. The file may be unavailable or use an unsupported codec.",
     "openFailed": "Could not open this file in the default app.",
     "openDefault": "Open in Default App"
+  },
+  "codeIntel": {
+    "result": {
+      "error": "Code intelligence: {{message}}",
+      "noProject": "No TypeScript or JavaScript project includes this file.",
+      "remote": "Code intelligence is not available on remote or SSH worktrees yet.",
+      "cancelled": "request cancelled",
+      "bufferLimit": "Open code, JSON, config or unsaved buffers exceed navigation limits. Close other relevant tabs or reduce oversized buffers. Saved code and config files still count."
+    }
   }
 }

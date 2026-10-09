@@ -252,6 +252,8 @@ export const electronViteConfig: UserConfig = {
           'port-scan-command-worker-entry': resolve(
             'src/main/ports/port-scan-command-worker-entry.ts'
           ),
+          // Synchronous TypeScript analysis must remain off the main event loop and be terminable.
+          'code-intel-worker-entry': resolve('src/main/code-intel/sidecar-entry.ts'),
           // Why: the Claude/Codex/OpenCode usage scans walk whole history
           // corpora and read SQLite synchronously; a worker thread keeps that
           // off the main-process event loop.
