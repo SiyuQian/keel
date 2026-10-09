@@ -53,6 +53,13 @@ trademark clearance is claimed here.
 
 ## Upstream synchronization
 
+The October 9, 2026 sync imports 218 commits from `stablyai/orca` through
+`69cf557a698bf25f4bae24d39c19fb1fd8bc13aa`. It retains Keel's README,
+agent guide, PR template, architecture, and tracked reference documents.
+The reference documents remain available to Keel's development rules even
+though upstream removed them; review their details against current source.
+Cloud workflows remain deleted. Remote runtimes now require Node.js 24 or newer.
+
 Keep the private-runner swap setup in PR checks: private Linux runners have
 8 GB RAM, while upstream's public runners have 16 GB. Before Keel has a stable
 release tag, compatibility checks use the PR base commit; after the first release,

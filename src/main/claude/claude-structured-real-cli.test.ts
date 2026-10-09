@@ -326,8 +326,8 @@ describe.skipIf(!realClaudeAvailable)(suiteTitle, () => {
         expect(frames).not.toHaveLength(0)
         // Both halves: the field exists, and it names the model the picker asked
         // for in the catalog's resolved shape rather than the id Orca sent.
-        expect(frames[0]?.model).toEqual(expect.any(String))
-        expect(frames[0]?.model).toBe('claude-haiku-4-5-20251001')
+        // The CLI resolves aliases to newer versions as its model catalog changes.
+        expect(frames[0]?.model).toMatch(/^claude-haiku-\d/)
         await expect(
           adapter.readOptions({ sessionId: 'real-cli-handshake', fence: 1 })
         ).resolves.toMatchObject({ current: { model: 'haiku' } })
@@ -336,6 +336,67 @@ describe.skipIf(!realClaudeAvailable)(suiteTitle, () => {
       }
     },
     90_000
+  )
+
+  // The host hands a Claude child nothing until `started`, which now follows the initialize answer
+  // alone. Measures what that wait costs against the live binary, so the startup limits are tuned
+  // from data: spawn to `started` with nothing sent, then a send to its first output.
+  it.skipIf(!realClaudeAuthenticated)(
+    'reports `started` with nothing sent, then answers a send handed over after it',
+    async () => {
+      const providerSessionId = randomUUID()
+      const claudeConfigDir = process.env.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), '.claude')
+      const events: ClaudeStructuredSessionEvent[] = []
+      const adapter = realAdapter(
+        providerSessionId,
+        claudeConfigDir,
+        events,
+        process.cwd(),
+        undefined,
+        realClaudeLaunchHome().env,
+        false
+      )
+      const until = async (done: () => boolean, timeoutMs: number): Promise<boolean> => {
+        const deadline = Date.now() + timeoutMs
+        while (!done() && Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 20))
+        }
+        return done()
+      }
+      try {
+        const acquireAt = Date.now()
+        await adapter.acquire({
+          identity: identity(providerSessionId),
+          fence: 1,
+          spawnToken: 'real-cli-started-timing'
+        })
+        const publishedAt = Date.now()
+        expect(await until(() => events.some((event) => event.type === 'started'), 30_000)).toBe(
+          true
+        )
+        const startedAt = Date.now()
+        const before = events.length
+        await adapter.dispatch({
+          sessionId: 'real-cli-handshake',
+          clientMessageId: 'real-cli-started-timing-1',
+          body: { kind: 'message', role: 'user', blocks: [{ type: 'text', text: 'Say ok' }] },
+          fence: 1
+        })
+        expect(
+          await until(() => events.slice(before).some((event) => event.type === 'message'), 60_000)
+        ).toBe(true)
+        const firstOutputAt = Date.now()
+        // Reported for tuning; the assertions above are the contract.
+        console.info(
+          `[real-cli startup timing] acquire->published ${publishedAt - acquireAt} ms, ` +
+            `published->started ${startedAt - publishedAt} ms, ` +
+            `dispatch->first output ${firstOutputAt - startedAt} ms`
+        )
+      } finally {
+        await adapter.closeAll()
+      }
+    },
+    120_000
   )
 
   // The contract a chat's first message depends on: saved options ride the launch, and the
@@ -391,7 +452,7 @@ describe.skipIf(!realClaudeAvailable)(suiteTitle, () => {
         expect(messages().find((m) => m.type === 'result')).toMatchObject({ is_error: false })
         // The turn's own init names what the child was launched with.
         expect(messages().find((m) => m.type === 'system' && m.subtype === 'init')).toMatchObject({
-          model: 'claude-sonnet-5',
+          model: expect.stringMatching(/^claude-sonnet-\d/),
           permissionMode: 'plan'
         })
       } finally {
