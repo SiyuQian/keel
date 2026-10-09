@@ -1,7 +1,7 @@
 # Windows daemon-host relocation
 
 On Windows the terminal daemon does not run from the install directory. Before it forks the
-daemon, Orca materializes a trimmed copy of its own runtime under
+daemon, Keel materializes a trimmed copy of its own runtime under
 `%LOCALAPPDATA%\Orca\daemon-host\<app version>\` and forks the daemon from there
 (`src/main/daemon/daemon-host-relocation.ts`). This is what keeps live terminals alive across an
 auto-update and across a crash of the main process.
@@ -27,7 +27,7 @@ works. `Restricted` disallows script files, not inline commands. A packaged trac
 showed that fallback successfully killing the relocated `Orca.exe` during an update; the
 genuine-uninstall cleanup guard was not responsible.
 
-Orca's `customCheckAppRunning` in `config/nsis/orca-process-check.nsh` tests the actual inline
+Keel's `customCheckAppRunning` in `config/nsis/orca-process-check.nsh` tests the actual inline
 `Get-CimInstance Win32_Process` query with terminating errors. Success selects the path-scoped
 branch; any other result retains the upstream fallback. The hook reuses upstream process
 selection, retry, permission and installation-mode handling. It neither overrides execution

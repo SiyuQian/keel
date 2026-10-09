@@ -1,6 +1,6 @@
 # Antivirus clearance for future releases
 
-Orca collects a steady stream of antivirus and EDR false positives — see the
+Keel collects a steady stream of antivirus and EDR false positives — see the
 tracking issue for the current grouping. This document covers the part of that
 problem worth engineering effort: **stopping the next release from being
 flagged.**

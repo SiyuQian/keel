@@ -37,7 +37,7 @@ provider's `.codebuddy/projects` tree and the same incremental parser.
 
 ## Validation scope
 
-Live macOS checks exercised launch through Orca's agent menu, model switching,
+Live macOS checks exercised launch through Keel's agent menu, model switching,
 question waiting, answer submission, working and completion indicators, history
 discovery and a resumed session recalling its earlier answer. Hidden-renderer CDP
 screenshots record the working, question and completed states. Windows, Linux,

@@ -105,6 +105,20 @@ describe('root directory guard', () => {
     expect(output).toContain('new-root.md')
   })
 
+  it('allows the reviewed architecture document without allowing other root files', () => {
+    const fixture = makeFixture()
+    const head = commitFiles(fixture.root, [['ARCHITECTURE.md', '# Architecture\n']])
+
+    expect(runGuard({ ...fixture, head }).status).toBe(0)
+
+    const unreviewedHead = commitFiles(fixture.root, [['new-root.md', 'unreviewed\n']])
+    const result = runGuard({ ...fixture, head: unreviewedHead })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toContain('new-root.md')
+    expect(result.stdout).not.toContain('  ARCHITECTURE.md')
+  })
+
   it('allows the reviewed cloud workspace directory', () => {
     const fixture = makeFixture()
     const head = commitFiles(fixture.root, [['cloud/package.json', '{}\n']])

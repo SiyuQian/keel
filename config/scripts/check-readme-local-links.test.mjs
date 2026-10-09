@@ -94,6 +94,26 @@ describe('README local link check', () => {
     ])
   })
 
+  it('lists E2E changes without reading blobs missing from the sparse checkout', () => {
+    const content = 'shared content\n'.repeat(20)
+    const root = makeFixture({ 'cloud-old.yml': `${content}old\n` })
+    const base = git(root, ['rev-parse', 'HEAD'])
+    const blob = git(root, ['rev-parse', `${base}:cloud-old.yml`])
+    rmSync(path.join(root, 'cloud-old.yml'))
+    writeFiles(root, { 'docs/new.md': `${content}new\n` })
+    git(root, ['add', '-A'])
+    git(root, ['commit', '--quiet', '-m', 'replace workflow with docs'])
+    git(root, ['config', 'diff.renames', 'true'])
+    rmSync(path.join(root, '.git', 'objects', blob.slice(0, 2), blob.slice(2)))
+
+    const workflow = parse(readFileSync(path.join(projectDir, '.github/workflows/pr.yml'), 'utf8'))
+    const filter = workflow.jobs.code_paths.steps.find((step) => step.id === 'e2e_filter')
+    const command = filter.run.match(/CHANGED="\$\(git diff ([^)]+)\)"/)[1]
+    const args = command.split(/\s+/).map((arg) => (arg === '"$DIFF_BASE"' ? base : arg))
+
+    expect(git(root, ['diff', ...args])).toBe('docs/new.md')
+  })
+
   it('reports a deleted media file for the root and translated READMEs', () => {
     const { 'docs/site/public/docs/tab-split.gif': _gif, ...files } = validReadmes
     vi.spyOn(console, 'error').mockImplementation(() => {})

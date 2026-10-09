@@ -2,7 +2,7 @@
 title: Scheduled automations
 ---
 
-Orca automations run a prompt on a schedule from the CLI, so recurring triage, review, and maintenance tasks can start without you opening a worktree by hand. By the end of this page, you'll create a disabled automation, inspect it, and run it when you're ready.
+Keel automations run a prompt on a schedule from the CLI, so recurring triage, review, and maintenance tasks can start without you opening a worktree by hand. By the end of this page, you'll create a disabled automation, inspect it, and run it when you're ready.
 
 ## Create a safe first automation
 
@@ -24,7 +24,7 @@ orca automations create \
 
 ## Choose where runs happen
 
-Use `--repo <selector>` when each run should create or select work in a repository. Use `--workspace <selector>` when the automation should run inside an existing Orca worktree instead:
+Use `--repo <selector>` when each run should create or select work in a repository. Use `--workspace <selector>` when the automation should run inside an existing Keel worktree instead:
 
 ```bash
 orca automations create \
@@ -36,7 +36,7 @@ orca automations create \
   --disabled
 ```
 
-When you omit both target flags, Orca resolves the enclosing worktree from the current shell directory when it can.
+When you omit both target flags, Keel resolves the enclosing worktree from the current shell directory when it can.
 
 ## Precheck before a run
 
@@ -75,9 +75,9 @@ Use `--project-host-setup <id>` when you already have a setup id. Optional `--so
 
 ## Manage automations across hosts
 
-The desktop **Automations** page loads schedules from this computer and supported connected Orca hosts into one table. The **Host** column shows where each automation is stored and scheduled; use **Filters → Host** to show one or more hosts, or return to **All hosts**.
+The desktop **Automations** page loads schedules from this computer and supported connected Keel hosts into one table. The **Host** column shows where each automation is stored and scheduled; use **Filters → Host** to show one or more hosts, or return to **All hosts**.
 
-When you create an automation in the desktop UI, **Create on** chooses its host before you choose a project. The project picker then shows projects available on that destination. Connected hosts that need a newer Orca server stay visible but disabled, with an **Update server** message, instead of disappearing from the picker.
+When you create an automation in the desktop UI, **Create on** chooses its host before you choose a project. The project picker then shows projects available on that destination. Connected hosts that need a newer Keel server stay visible but disabled, with an **Update server** message, instead of disappearing from the picker.
 
 ## Missed-run grace
 
@@ -129,9 +129,9 @@ orca automations run <automationId> --json
 orca automations runs --id <automationId> --json
 ```
 
-If a run fails before it opens a workspace or reconnects to its target, open that run in Orca and click **Rerun** to queue a fresh manual run for the same automation.
+If a run fails before it opens a workspace or reconnects to its target, open that run in Keel and click **Rerun** to queue a fresh manual run for the same automation.
 
 ## Next steps
 
-- [Orca CLI overview](/docs/cli/overview) — see the rest of the CLI surface for worktrees, terminals, and browser control.
-- [Skills registry & MCP](/docs/cli/skills) — install the Orca CLI skill so agents can call the same commands.
+- [Keel CLI overview](/docs/cli/overview) — see the rest of the CLI surface for worktrees, terminals, and browser control.
+- [Skills registry & MCP](/docs/cli/skills) — install the Keel CLI skill so agents can call the same commands.
