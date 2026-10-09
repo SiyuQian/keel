@@ -420,9 +420,15 @@ describe('sidebar review badge interactions', () => {
     (provider, label) => {
       const onRowClick = vi.fn()
       const onRowPointerDown = vi.fn()
+      const onRowDoubleClick = vi.fn()
       act(() => {
         root.render(
-          <div onClick={onRowClick} onPointerDown={onRowPointerDown} draggable>
+          <div
+            onClick={onRowClick}
+            onPointerDown={onRowPointerDown}
+            onDoubleClick={onRowDoubleClick}
+            draggable
+          >
             <WorktreeCardMetaBadges
               issue={null}
               linearIssue={null}
@@ -440,9 +446,11 @@ describe('sidebar review badge interactions', () => {
       act(() => {
         link?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
         link?.dispatchEvent(click)
+        link?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
       })
       expect(onRowClick).not.toHaveBeenCalled()
       expect(onRowPointerDown).not.toHaveBeenCalled()
+      expect(onRowDoubleClick).not.toHaveBeenCalled()
       expect(click.defaultPrevented).toBe(false)
     }
   )
@@ -455,9 +463,14 @@ describe('sidebar review badge interactions', () => {
     (provider, label) => {
       const onRowClick = vi.fn()
       const onRowPointerDown = vi.fn()
+      const onRowDoubleClick = vi.fn()
       act(() => {
         root.render(
-          <div onClick={onRowClick} onPointerDown={onRowPointerDown}>
+          <div
+            onClick={onRowClick}
+            onPointerDown={onRowPointerDown}
+            onDoubleClick={onRowDoubleClick}
+          >
             <WorktreeCardMetaBadges
               issue={null}
               linearIssue={null}
@@ -470,12 +483,15 @@ describe('sidebar review badge interactions', () => {
       expect(container.querySelector('a, button, [role="button"]')).toBeNull()
       const badge = container.querySelector('[data-slot="badge"]')
       expect(badge?.textContent).toBe(label)
+      expect(badge?.getAttribute('aria-label')).toBe(`Linked ${label}`)
       act(() => {
         badge?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
         badge?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        badge?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
       })
       expect(onRowClick).toHaveBeenCalledTimes(1)
       expect(onRowPointerDown).toHaveBeenCalledTimes(1)
+      expect(onRowDoubleClick).toHaveBeenCalledTimes(1)
     }
   )
 })

@@ -158,13 +158,21 @@ export const WorktreeCardMetaBadges = React.forwardRef<
               )}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
             >
               <ReviewIcon review={review} />
               <span>{`${getReviewLabel(review)} #${review.number}`}</span>
             </a>
           </Button>
         ) : (
-          <Badge variant="outline">
+          <Badge
+            variant="outline"
+            aria-label={translate(
+              'auto.components.sidebar.WorktreeCardMeta.3ea2702e62',
+              'Linked {{value0}} #{{value1}}',
+              { value0: getReviewLabel(review), value1: review.number }
+            )}
+          >
             <ReviewIcon review={review} />
             <span>{`${getReviewLabel(review)} #${review.number}`}</span>
           </Badge>
