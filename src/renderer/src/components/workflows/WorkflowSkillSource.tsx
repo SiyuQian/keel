@@ -1,3 +1,4 @@
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { translate } from '@/i18n/i18n'
 import { workflowSkillCandidates } from '../../../../shared/workflow-skill-reference'
 import type { DiscoveredSkill } from '../../../../shared/skills'
@@ -53,14 +54,16 @@ export function WorkflowSkillSource({
               </p>
             ) : null}
             {document?.source ? (
-              <details className="rounded-md border border-border p-3">
-                <summary className="cursor-pointer text-xs font-medium">
+              <Collapsible>
+                <CollapsibleTrigger variant="row">
                   {translate('workflows.rawSkill', 'Original SKILL.md')}
-                </summary>
-                <pre className="scrollbar-sleek mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
-                  {document.source}
-                </pre>
-              </details>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <pre className="scrollbar-sleek mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+                    {document.source}
+                  </pre>
+                </CollapsibleContent>
+              </Collapsible>
             ) : !document ? (
               <p className="text-xs text-muted-foreground">
                 {translate(

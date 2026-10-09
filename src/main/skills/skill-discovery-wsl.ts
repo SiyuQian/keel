@@ -108,10 +108,26 @@ export function buildWslSkillDiscoveryCommand(
     'set -u',
     'set -o pipefail',
     ...nameFilterHelpers,
+    'read_plugin_identity() {',
+    '  local directory=${1%/*} depth marker found encoded_manifest',
+    '  for ((depth=0; depth<10; depth++)); do',
+    '    found=0',
+    '    for marker in .codex-plugin .claude-plugin; do',
+    '      [ -f "$directory/$marker/plugin.json" ] || continue',
+    '      found=1',
+    `      encoded_manifest=$(head -c 262145 -- "$directory/$marker/plugin.json" 2>/dev/null | base64 | tr -d '\\n') || continue`,
+    `      printf '%s\\0%s\\0%s\\0%s\\0' P "$root_index" "$1" "$encoded_manifest"`,
+    '    done',
+    '    [ "$found" -eq 1 ] && return',
+    '    [ "$directory" = "$root_path" ] && return',
+    '    directory=${directory%/*}',
+    '  done',
+    '}',
     'scan_root() {',
     '  root_index=$1',
     '  root_path=$2',
     '  max_depth=$3',
+    '  plugin_identity=$4',
     '  if [ ! -d "$root_path" ]; then',
     `    printf '%s\\0%s\\0%s\\0' R "$root_index" 0`,
     '    return',
@@ -126,12 +142,15 @@ export function buildWslSkillDiscoveryCommand(
     `    printf '%s\\0%s\\0%s\\0%s\\0%s\\0' S "$root_index" "$skill_file" "$canonical_path" "$updated_at"`,
     `    printf '%s' "$encoded_markdown"`,
     `    printf '\\0'`,
+    '    if [ "$plugin_identity" -eq 1 ]; then read_plugin_identity "$skill_file"; fi',
     `  done < <(find -L "$root_path" -mindepth 1 -maxdepth "$max_depth" \\( -name '${SKILL_STAGING_GLOB}' -prune \\) -o \\( -type f -name 'SKILL.md' -print0 \\) 2>/dev/null)`,
     '}'
   ]
   roots.forEach((root, index) => {
     const maxDepth = skillFileMaxDepth(root.sourceKind)
-    lines.push(`scan_root ${index} ${quoteBashString(root.path)} ${maxDepth}`)
+    lines.push(
+      `scan_root ${index} ${quoteBashString(root.path)} ${maxDepth} ${root.id === 'codex-plugin-cache' ? 1 : 0}`
+    )
   })
   return lines.join('\n')
 }

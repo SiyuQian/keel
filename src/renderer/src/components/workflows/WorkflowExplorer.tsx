@@ -29,7 +29,7 @@ export function WorkflowExplorer({
   const visible =
     observation?.entries.filter((entry) => {
       const owner = skills.find((skill) => skill.id === entry.ownerId)
-      return `${owner?.name} ${owner?.description} ${owner?.sourceLabel} ${entry.path}`
+      return `${entry.definition?.name ?? ''} ${entry.definition?.description ?? ''} ${owner?.name} ${owner?.description} ${owner?.sourceLabel} ${entry.path}`
         .toLowerCase()
         .includes(query.trim().toLowerCase())
     }) ?? []
@@ -86,7 +86,8 @@ export function WorkflowExplorer({
               return (
                 <Button
                   key={entry.ownerId}
-                  variant={entry === selected ? 'secondary' : 'ghost'}
+                  variant="ghost"
+                  data-current={entry === selected ? 'true' : undefined}
                   className="h-auto w-full justify-start whitespace-normal text-left"
                   aria-pressed={entry === selected}
                   onClick={() => setOwnerId(entry.ownerId)}
@@ -110,7 +111,7 @@ export function WorkflowExplorer({
           </nav>
         </aside>
         <div className="flex min-w-0 shrink-0 flex-col md:min-h-0 md:flex-1">
-          {inventory.loading ? (
+          {inventory.visibleLoading ? (
             <p role="status" className="flex items-center gap-2 p-5 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
               {translate('workflows.loading', 'Reading installed workflows…')}

@@ -20,6 +20,7 @@ import {
 } from './skill-discovery-sources'
 import { rootMayContainSourceKind } from './skill-discovery-source-filter'
 import { discoverClaudePluginSkillSources } from './claude-plugin-skill-sources'
+import { discoverCodexPluginNamespaces } from './skill-plugin-provenance'
 import { findSkillFiles } from './skill-root-file-walk'
 import { runSkillCandidateTasks } from './skill-candidate-concurrency'
 import {
@@ -141,6 +142,7 @@ type ScannedSkill = DiscoveredSkill & { canonicalSkillFilePath: string }
 
 async function scanRoot(root: SkillScanRoot, signal: AbortSignal): Promise<ScannedSkill[]> {
   const maxDepth = skillDirectoryMaxDepth(root.sourceKind)
+  const manifests = new Map<string, Promise<string | undefined>>()
   const skillFiles = await findSkillFiles(root.path, maxDepth, signal)
   // Why: a root can hold many packages and each one costs a summary read plus a
   // package walk. Unbounded fan-out here is what turned one scan into a burst of
@@ -158,8 +160,14 @@ async function scanRoot(root: SkillScanRoot, signal: AbortSignal): Promise<Scann
       if (!summary) {
         return null
       }
+      const pluginNamespaces =
+        root.pluginNamespaces ??
+        (root.id === 'codex-plugin-cache'
+          ? await discoverCodexPluginNamespaces(root.path, skillFilePath, signal, manifests)
+          : [])
       const sourceKind = sourceKindForSkill(root, skillFilePath, { relative, sep })
       return {
+        ...(pluginNamespaces.length ? { pluginNamespaces: [...pluginNamespaces] } : {}),
         id: stablePathId(canonicalSkillFilePath),
         name: summary.name ?? basename(directoryPath),
         description: summary.description,
@@ -238,7 +246,8 @@ function mergeScannedSkill(seen: Map<string, DiscoveredSkill>, skill: ScannedSki
     seen.set(canonicalSkillFilePath, {
       ...publicSkill,
       providers: [...publicSkill.providers],
-      rootPaths: [skill.rootPath]
+      rootPaths: [skill.rootPath],
+      ...(skill.pluginNamespaces ? { pluginNamespaces: [...skill.pluginNamespaces] } : {})
     })
     return
   }
@@ -250,6 +259,11 @@ function mergeScannedSkill(seen: Map<string, DiscoveredSkill>, skill: ScannedSki
   // agents can see it on the Settings provider badges/filter. Reassign a
   // fresh array — `providers` aliases the scan root's array, so pushing in
   // place would mutate the root and every sibling skill/source sharing it.
+  if (skill.pluginNamespaces?.length) {
+    existing.pluginNamespaces = [
+      ...new Set([...(existing.pluginNamespaces ?? []), ...skill.pluginNamespaces])
+    ]
+  }
   const mergedProviders = [...existing.providers]
   for (const provider of skill.providers) {
     if (!mergedProviders.includes(provider)) {
@@ -264,6 +278,7 @@ export async function discoverSkills(args: {
   homeDir?: string
   cwd?: string
   includeCwd?: boolean
+  includeUserPlugins?: boolean
   providerRootOverrides?: SkillProviderRootOverrides
   refresh?: boolean
   names?: string[]
@@ -274,12 +289,10 @@ export async function discoverSkills(args: {
   const refresh = args.refresh === true
   const roots = [
     ...buildSkillDiscoverySources({ ...args, homeDir }),
-    // Why: plugin discovery is native-chat data keyed to an explicit workspace.
-    // Untargeted scans (Settings) keep their pre-picker inventory and cost.
-    ...(args.cwd &&
-    args.includeCwd !== false &&
+    // Workflow inventory also reads user plugins in the executing host's home scope.
+    ...((args.includeUserPlugins || (args.cwd && args.includeCwd !== false)) &&
     (!args.sourceKinds?.length || args.sourceKinds.includes('plugin'))
-      ? await discoverClaudePluginSkillSources({ homeDir, cwd: args.cwd })
+      ? await discoverClaudePluginSkillSources({ homeDir, cwd: args.cwd ?? homeDir })
       : [])
   ].filter((root) => rootMayContainSourceKind(root, args.sourceKinds))
   const scans = await Promise.all(roots.map((root) => scanRootShared(root, refresh)))

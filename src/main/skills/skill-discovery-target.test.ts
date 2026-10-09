@@ -52,7 +52,7 @@ afterEach(() => {
 })
 
 describe('discoverSkillsOnTarget', () => {
-  it('attaches workflow metadata only to the requesting caller after shared scans', async () => {
+  it('isolates the expanded workflow discovery scope from ordinary inventory', async () => {
     const target = { kind: 'native-host', cwd: '/workspace' } as const
     const [ordinary, workflows] = await Promise.all([
       discoverSkillsOnTarget(target, []),
@@ -60,7 +60,8 @@ describe('discoverSkillsOnTarget', () => {
     ])
     expect(workflows.workflows).toEqual({ entries: [], documents: [], issues: [] })
     expect(ordinary).not.toHaveProperty('workflows')
-    expect(nativeScans).toHaveLength(1)
+    expect(nativeScans).toHaveLength(2)
+    expect(nativeScans[1]).toMatchObject({ includeUserPlugins: true })
   })
   it('collapses simultaneous identical requests from several clients into one scan', async () => {
     await Promise.all(

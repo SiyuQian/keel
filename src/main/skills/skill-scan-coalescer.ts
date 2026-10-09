@@ -9,7 +9,12 @@ export type SkillScanRunOptions = {
 }
 
 type CacheEntry<T> = { value: T; expiresAt: number }
-type PendingEntry<T> = { promise: Promise<T>; startedAt: number; abort: AbortController }
+type PendingEntry<T> = {
+  promise: Promise<T>
+  result: Promise<T>
+  startedAt: number
+  abort: AbortController
+}
 
 // Why: a root on a stalled network mount can leave a readdir that never settles.
 // Joining it forever would make one wedged mount permanently wedge discovery for
@@ -75,7 +80,8 @@ export class SkillScanCoalescer<T> {
 
   constructor(
     private readonly maximumEntries: number,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    private readonly limits: { timeoutMs?: number; maximumPending?: number } = {}
   ) {}
 
   async run(
@@ -83,7 +89,7 @@ export class SkillScanCoalescer<T> {
     options: SkillScanRunOptions,
     task: (signal: AbortSignal) => Promise<T>
   ): Promise<SkillScanOutcome<T>> {
-    if (options.refresh) {
+    if (options.refresh && !this.limits.maximumPending) {
       // Why: a forced caller is answering a mutation it just made, so it must not
       // join a scan that may have started before that mutation. Concurrent forced
       // callers therefore duplicate; they are rare (install / explicit recheck).
@@ -93,13 +99,16 @@ export class SkillScanCoalescer<T> {
       this.cache.delete(key)
       return { value: await this.start(key, options.ttlMs, task), cached: false }
     }
+    if (options.refresh) {
+      this.cache.delete(key)
+    }
     const fresh = this.readFresh(key)
     if (fresh) {
       return { value: fresh.value, cached: true }
     }
     const inFlight = this.pending.get(key)
     if (inFlight && this.now() - inFlight.startedAt < MAX_JOINABLE_SCAN_AGE_MS) {
-      return { value: await inFlight.promise, cached: true }
+      return { value: await inFlight.result, cached: true }
     }
     if (inFlight) {
       if (this.abandonedScans >= MAX_ABANDONED_SCANS) {
@@ -118,17 +127,31 @@ export class SkillScanCoalescer<T> {
           this.abandonedScans -= 1
         })
     }
+    if (
+      !inFlight &&
+      this.limits.maximumPending !== undefined &&
+      this.pending.size >= this.limits.maximumPending
+    ) {
+      throw new SkillScanShedError()
+    }
     return { value: await this.start(key, options.ttlMs, task), cached: false }
   }
 
-  /** Drop every cached and in-flight entry (e.g. after a skill update run). */
+  /** Invalidate cached answers. Bounded scans retain uncancellable work against their budget. */
   clear(): void {
     this.cache.clear()
-    this.pending.clear()
+    if (this.limits.maximumPending) {
+      for (const entry of this.pending.values()) {
+        entry.abort.abort()
+      }
+    } else {
+      this.pending.clear()
+    }
   }
 
   private start(key: string, ttlMs: number, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
     const abort = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
     const promise = task(abort.signal)
       .then((value) => {
         // Why: owning the pending slot is what makes a scan publishable, and it is
@@ -138,12 +161,13 @@ export class SkillScanCoalescer<T> {
         // one check covers all three ways it can be superseded: `clear()` empties
         // `pending`, a refresh overwrites the slot, and so does the replacement
         // for a scan abandoned past MAX_JOINABLE_SCAN_AGE_MS.
-        if (ttlMs > 0 && this.pending.get(key)?.promise === promise) {
+        if (ttlMs > 0 && !abort.signal.aborted && this.pending.get(key)?.promise === promise) {
           this.write(key, value, ttlMs)
         }
         return value
       })
       .finally(() => {
+        clearTimeout(timer)
         // Why: a newer forced scan may already own this key; only the entry that
         // registered itself may remove itself.
         if (this.pending.get(key)?.promise === promise) {
@@ -153,8 +177,24 @@ export class SkillScanCoalescer<T> {
     // Why: rejections must not surface as an unhandled rejection on the shared
     // promise before the caller that started it awaits.
     promise.catch(() => undefined)
-    this.pending.set(key, { promise, startedAt: this.now(), abort })
-    return promise
+    // Keep the underlying promise registered until its syscall settles, even after the caller times out.
+    const result =
+      this.limits.timeoutMs === undefined
+        ? promise
+        : Promise.race([
+            promise,
+            new Promise<T>((_resolve, reject) => {
+              timer = setTimeout(() => {
+                const error = new Error('Skill scan timed out')
+                error.name = 'TimeoutError'
+                abort.abort(error)
+                reject(error)
+              }, this.limits.timeoutMs)
+            })
+          ])
+    result.catch(() => undefined)
+    this.pending.set(key, { promise, result, startedAt: this.now(), abort })
+    return result
   }
 
   private readFresh(key: string): CacheEntry<T> | null {

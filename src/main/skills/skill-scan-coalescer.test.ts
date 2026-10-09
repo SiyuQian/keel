@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SkillScanCoalescer, SkillScanShedError } from './skill-scan-coalescer'
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
@@ -294,4 +294,67 @@ describe('SkillScanCoalescer', () => {
     // 16 replacements are admitted; past that no further walk is started.
     expect(shed).toEqual(['root-16'])
   })
+})
+
+it('bounds callers and retains uncancellable scans against the pending budget', async () => {
+  vi.useFakeTimers()
+  try {
+    const coalescer = new SkillScanCoalescer<number>(8, Date.now, {
+      timeoutMs: 100,
+      maximumPending: 2
+    })
+    let runs = 0
+    const gates = [deferred<number>(), deferred<number>()]
+    const task = () => gates[runs++].promise
+    const first = coalescer.run('a', { ttlMs: 0 }, task)
+    const second = coalescer.run('b', { ttlMs: 0 }, task)
+    const outcomes = Promise.allSettled([first, second])
+    await expect(coalescer.run('c', { ttlMs: 0 }, task)).rejects.toBeInstanceOf(SkillScanShedError)
+    await vi.advanceTimersByTimeAsync(100)
+    expect((await outcomes).every((outcome) => outcome.status === 'rejected')).toBe(true)
+    for (let i = 0; i < 20; i++) {
+      await expect(coalescer.run('a', { ttlMs: 0, refresh: true }, task)).rejects.toThrow()
+    }
+    expect(runs).toBe(2)
+    gates[0].resolve(1)
+    gates[1].resolve(2)
+    await vi.advanceTimersByTimeAsync(0)
+    expect((await coalescer.run('c', { ttlMs: 0 }, async () => 3)).value).toBe(3)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('bounds repeated replacements even when timed-out filesystem work cannot be cancelled', async () => {
+  vi.useFakeTimers()
+  try {
+    const coalescer = new SkillScanCoalescer<number>(8, Date.now, {
+      timeoutMs: 100,
+      maximumPending: 2
+    })
+    const gates: ReturnType<typeof deferred<number>>[] = []
+    const task = () => {
+      const gate = deferred<number>()
+      gates.push(gate)
+      return gate.promise
+    }
+    for (let i = 0; i < 17; i++) {
+      const result = coalescer.run('stalled', { ttlMs: 0, refresh: true }, task)
+      const rejection = expect(result).rejects.toThrow('timed out')
+      await vi.advanceTimersByTimeAsync(31000)
+      await rejection
+    }
+    await expect(
+      coalescer.run('stalled', { ttlMs: 0, refresh: true }, task)
+    ).rejects.toBeInstanceOf(SkillScanShedError)
+    expect(gates).toHaveLength(17)
+    coalescer.clear()
+    for (const gate of gates) {
+      gate.resolve(1)
+    }
+    await vi.advanceTimersByTimeAsync(0)
+    expect((await coalescer.run('stalled', { ttlMs: 0 }, async () => 2)).value).toBe(2)
+  } finally {
+    vi.useRealTimers()
+  }
 })

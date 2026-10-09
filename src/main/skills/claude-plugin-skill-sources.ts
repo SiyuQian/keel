@@ -1,6 +1,7 @@
 import { open, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, sep, type posix } from 'node:path'
 import { stablePathId, type SkillScanRoot } from './skill-discovery-sources'
+import { pluginNamespace } from './skill-plugin-provenance'
 import { stripUnsafeDisplayCharacters } from '../../shared/skill-display-text'
 
 const MAX_PLUGIN_METADATA_BYTES = 4 * 1024 * 1024
@@ -171,14 +172,20 @@ export function resolveClaudePluginSkillSources(args: {
       continue
     }
     const skillsPath = pathApi.join(install.installPath, 'skills')
-    if (!roots.has(skillsPath)) {
+    const namespace = pluginNamespace(pluginId.split('@')[0])
+    const existing = roots.get(skillsPath)
+    if (existing && namespace && !existing.pluginNamespaces?.includes(namespace)) {
+      existing.pluginNamespaces = [...(existing.pluginNamespaces ?? []), namespace]
+    }
+    if (!existing) {
       roots.set(skillsPath, {
         id: `claude-plugin-${stablePathId(skillsPath)}`,
         label: `Claude plugin ${safePluginLabel(pluginId, pathApi)}`,
         path: skillsPath,
         sourceKind: 'plugin',
         providers: ['claude'],
-        owner: 'claude'
+        owner: 'claude',
+        ...(namespace ? { pluginNamespaces: [namespace] } : {})
       })
     }
   }

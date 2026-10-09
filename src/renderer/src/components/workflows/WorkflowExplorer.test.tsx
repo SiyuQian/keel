@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { WorkflowExplorer } from './WorkflowExplorer'
 import type { SkillDiscoveryResult } from '../../../../shared/skills'
@@ -9,6 +9,7 @@ vi.mock('@/runtime/runtime-skills-client', () => ({ discoverSkillsForRuntimeTarg
 afterEach(() => {
   cleanup()
   discover.mockReset()
+  vi.useRealTimers()
 })
 const result: SkillDiscoveryResult = {
   scannedAt: 1,
@@ -89,6 +90,7 @@ it('supports stage selection, previous/next, original YAML, Skill source and sea
   )
   fireEvent.mouseDown(screen.getByRole('tab', { name: 'Skills' }), { button: 0, ctrlKey: false })
   fireEvent.click(screen.getByRole('tab', { name: 'Skills' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Original SKILL.md' }))
   expect(screen.getByText(/Original Skill/)).toBeTruthy()
   fireEvent.change(screen.getByRole('searchbox', { name: 'Search workflows' }), {
     target: { value: 'nothing' }
@@ -191,4 +193,108 @@ it('keeps the local WSL discovery target and requests an explicit disk refresh',
       refresh: true
     })
   )
+})
+
+it('searches the declared workflow name and description independently of its owner', async () => {
+  discover.mockResolvedValue({
+    ...result,
+    workflows: {
+      ...result.workflows,
+      entries: result.workflows!.entries.map((entry) => ({
+        ...entry,
+        definition: {
+          ...entry.definition!,
+          name: 'Release checklist',
+          description: 'Ship the package.'
+        }
+      }))
+    }
+  })
+  explorer()
+  await screen.findByRole('heading', { name: 'Release checklist', level: 2 })
+  for (const query of ['Release checklist', 'Ship the package']) {
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: query } })
+    expect(screen.queryByText('No matching workflows.')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Release checklist', level: 2 })).toBeTruthy()
+  }
+})
+it('marks the current workflow and updates the current stage when navigating', async () => {
+  discover.mockResolvedValue(result)
+  explorer()
+  await screen.findByRole('heading', { name: 'example', level: 2 })
+  expect(screen.getByRole('button', { name: 'example Home' }).getAttribute('data-current')).toBe(
+    'true'
+  )
+  const read = screen.getByRole('button', { name: /01 read/ })
+  expect(read.getAttribute('data-current')).toBe('true')
+  fireEvent.click(screen.getByRole('button', { name: 'Next stage' }))
+  expect(read.getAttribute('data-current')).toBeNull()
+  expect(screen.getByRole('button', { name: /02 check/ }).getAttribute('data-current')).toBe('true')
+})
+it('defers visible loading and keeps the previous observation during a fast refresh', async () => {
+  discover.mockResolvedValueOnce(result)
+  const runtimeTarget = { kind: 'local' } as const
+  render(
+    <WorkflowExplorer
+      runtimeTarget={runtimeTarget}
+      hostLabel="This machine"
+      onBack={() => {}}
+      onClose={() => {}}
+    />
+  )
+  await screen.findByRole('heading', { name: 'example', level: 2 })
+  vi.useFakeTimers()
+  let finish!: (value: SkillDiscoveryResult) => void
+  discover.mockReturnValueOnce(
+    new Promise<SkillDiscoveryResult>((resolve) => {
+      finish = resolve
+    })
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+  expect(screen.getByRole('button', { name: 'Refresh' }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('heading', { name: 'example', level: 2 })).toBeTruthy()
+  expect(screen.queryByText('Reading installed workflows…')).toBeNull()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(199)
+  })
+  expect(screen.queryByText('Reading installed workflows…')).toBeNull()
+  await act(async () => {
+    finish(result)
+  })
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000)
+  })
+  expect(screen.queryByText('Reading installed workflows…')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Refresh' }).hasAttribute('disabled')).toBe(false)
+})
+it('shows delayed feedback for a slow request and resets its timer on host switch', async () => {
+  vi.useFakeTimers()
+  discover.mockReturnValue(new Promise<SkillDiscoveryResult>(() => {}))
+  const local = { kind: 'local' } as const
+  const rendered = render(
+    <WorkflowExplorer
+      runtimeTarget={local}
+      hostLabel="Local"
+      onBack={() => {}}
+      onClose={() => {}}
+    />
+  )
+  expect(screen.queryByText('Reading installed workflows…')).toBeNull()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200)
+  })
+  expect(screen.getByText('Reading installed workflows…')).toBeTruthy()
+  rendered.rerender(
+    <WorkflowExplorer
+      runtimeTarget={{ kind: 'environment', environmentId: 'remote' }}
+      hostLabel="Remote"
+      onBack={() => {}}
+      onClose={() => {}}
+    />
+  )
+  expect(screen.queryByText('Reading installed workflows…')).toBeNull()
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200)
+  })
+  expect(screen.getByText('Reading installed workflows…')).toBeTruthy()
 })

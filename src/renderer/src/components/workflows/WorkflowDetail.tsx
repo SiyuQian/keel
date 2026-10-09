@@ -97,7 +97,8 @@ export function WorkflowDetail({
                         />
                       ) : null}
                       <Button
-                        variant={stage === selected ? 'secondary' : 'outline'}
+                        variant={stage === selected ? 'ghost' : 'outline'}
+                        data-current={stage === selected ? 'true' : undefined}
                         className="h-auto w-full justify-start whitespace-normal text-left"
                         aria-pressed={stage === selected}
                         onClick={() => setSelectedId(stage.id)}

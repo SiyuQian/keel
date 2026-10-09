@@ -15,6 +15,8 @@ import {
 } from '../../shared/workflow-definition'
 import { z } from 'zod'
 import { workflowSkillCandidates } from '../../shared/workflow-skill-reference'
+import { SkillScanCoalescer, isSkillRootUnavailableError } from './skill-scan-coalescer'
+import { stablePathId } from './skill-discovery-sources'
 import { runSkillCandidateTasks } from './skill-candidate-concurrency'
 
 const MAX_CANDIDATES = 256
@@ -46,9 +48,34 @@ function packageVersion(source: string): string | null {
   }
 }
 
+const workflowScans = new SkillScanCoalescer<WorkflowObservation>(32, Date.now, {
+  timeoutMs: 10_000,
+  maximumPending: 8
+})
+
 export async function observeWorkflows(
   skills: readonly DiscoveredSkill[],
   target: ResolvedSkillDiscoveryTarget
+): Promise<WorkflowObservation> {
+  const key = stablePathId(JSON.stringify([target, skills]))
+  try {
+    return (
+      await workflowScans.run(key, { ttlMs: 0 }, (signal) => readWorkflows(skills, target, signal))
+    ).value
+  } catch (error) {
+    if (!isSkillRootUnavailableError(error)) {
+      throw error
+    }
+    throw new Error('Workflow discovery is still reading a slow location. Try again.', {
+      cause: error
+    })
+  }
+}
+
+async function readWorkflows(
+  skills: readonly DiscoveredSkill[],
+  target: ResolvedSkillDiscoveryTarget,
+  signal: AbortSignal
 ): Promise<WorkflowObservation> {
   const result: WorkflowObservation = { entries: [], documents: [], issues: [] }
   let bytes = 4096 // Reserve room for bounded inventory warnings.
@@ -62,12 +89,15 @@ export async function observeWorkflows(
   }
   const diskPath = (path: string): string =>
     target.kind === 'wsl' ? toWindowsWslUncPath(path, target.distro) : path
-  const read = async (path: string): Promise<string> =>
-    (
-      await readNodeFileWithinLimit(diskPath(path), MAX_WORKFLOW_SOURCE_BYTES, {
-        regularFileOnly: true
-      })
-    ).buffer.toString('utf8')
+  const read = async (path: string): Promise<string> => {
+    signal.throwIfAborted()
+    const file = await readNodeFileWithinLimit(diskPath(path), MAX_WORKFLOW_SOURCE_BYTES, {
+      regularFileOnly: true,
+      signal
+    })
+    signal.throwIfAborted()
+    return file.buffer.toString('utf8')
+  }
   const installed = skills.filter((skill) => skill.installed)
   if (installed.length > MAX_CANDIDATES) {
     result.issues.push(
@@ -76,6 +106,7 @@ export async function observeWorkflows(
   }
   const candidates = installed.slice(0, MAX_CANDIDATES)
   for (let offset = 0; offset < candidates.length; offset += 4) {
+    signal.throwIfAborted()
     const entries = await runSkillCandidateTasks(
       candidates
         .slice(offset, offset + 4)
@@ -126,30 +157,38 @@ export async function observeWorkflows(
     result.issues.push('Partial Skill sources: only the first 128 documents were read.')
   }
   const sources = new Map<string, Promise<Omit<WorkflowSkillDocument, 'skillId'>>>()
-  for (const skill of [...wanted.values()].slice(0, MAX_DOCUMENTS)) {
-    let pending = sources.get(skill.skillFilePath)
-    if (!pending) {
-      pending = read(skill.skillFilePath).then(
-        (source) => ({ source, packageVersion: packageVersion(source) }),
-        (error: unknown) => ({ source: null, packageVersion: null, error: readError(error) })
-      )
-      sources.set(skill.skillFilePath, pending)
-    }
-    let document: WorkflowSkillDocument = { skillId: skill.id, ...(await pending) }
-    if (!fits(document)) {
-      document = {
-        skillId: skill.id,
-        source: null,
-        packageVersion: null,
-        error: 'Skill source omitted: the response reached the 2 MiB limit.'
+  const documents = [...wanted.values()].slice(0, MAX_DOCUMENTS)
+  for (let offset = 0; offset < documents.length; offset += 4) {
+    signal.throwIfAborted()
+    const batch = await runSkillCandidateTasks(
+      documents.slice(offset, offset + 4).map((skill) => async () => {
+        let pending = sources.get(skill.skillFilePath)
+        if (!pending) {
+          pending = read(skill.skillFilePath).then(
+            (source) => ({ source, packageVersion: packageVersion(source) }),
+            (error: unknown) => ({ source: null, packageVersion: null, error: readError(error) })
+          )
+          sources.set(skill.skillFilePath, pending)
+        }
+        return { skillId: skill.id, ...(await pending) }
+      })
+    )
+    for (let document of batch) {
+      if (!fits(document)) {
+        document = {
+          skillId: document.skillId,
+          source: null,
+          packageVersion: null,
+          error: 'Skill source omitted: the response reached the 2 MiB limit.'
+        }
+        result.issues.push('Partial Skill sources: response reached the 2 MiB limit.')
+        if (fits(document)) {
+          result.documents.push(document)
+        }
+        return result
       }
-      result.issues.push('Partial Skill sources: response reached the 2 MiB limit.')
-      if (fits(document)) {
-        result.documents.push(document)
-      }
-      break
+      result.documents.push(document)
     }
-    result.documents.push(document)
   }
   return result
 }

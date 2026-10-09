@@ -162,7 +162,7 @@ export async function discoverSkillsOnTarget(
   const refresh = options.refresh === true
   try {
     const outcome = await targetScans.run(
-      scanKey(target, repos, options.providerRootOverrides),
+      `${scanKey(target, repos, options.providerRootOverrides)}:${options.includeWorkflows === true}`,
       { ttlMs: target.kind === 'wsl' ? WSL_RESULT_TTL_MS : 0, refresh },
       async (): Promise<TargetScanObservation> => {
         if (target.kind === 'wsl') {
@@ -182,6 +182,7 @@ export async function discoverSkillsOnTarget(
               repos: [],
               cwd: target.cwd,
               refresh,
+              ...(options.includeWorkflows ? { includeUserPlugins: true } : {}),
               ...(target.names ? { names: target.names } : {}),
               ...(target.sourceKinds ? { sourceKinds: target.sourceKinds } : {}),
               providerRootOverrides: options.providerRootOverrides
@@ -189,6 +190,7 @@ export async function discoverSkillsOnTarget(
           : discoverSkills({
               repos: [...repos],
               refresh,
+              ...(options.includeWorkflows ? { includeUserPlugins: true } : {}),
               ...(target.names ? { names: target.names } : {}),
               ...(target.sourceKinds ? { sourceKinds: target.sourceKinds } : {}),
               providerRootOverrides: options.providerRootOverrides

@@ -15,6 +15,7 @@ import {
   type SkillScanRoot
 } from './skill-discovery-sources'
 import { rootMayContainSourceKind } from './skill-discovery-source-filter'
+import { pluginManifestNamespace } from './skill-plugin-provenance'
 
 export type WslSkillDiscoveryObservation = {
   rows: { canonicalSkillFilePath: string; skill: DiscoveredSkill }[]
@@ -50,6 +51,26 @@ export function readWslSkillDiscoveryObservation(
       rootExists.set(rootIndex, readProtocolField(fields, index++) === '1')
       continue
     }
+    if (recordKind === 'P') {
+      const skillFilePath = readProtocolField(fields, index++)
+      const manifest = Buffer.from(readProtocolField(fields, index++), 'base64')
+      const namespace =
+        manifest.length <= 256 * 1024
+          ? pluginManifestNamespace(manifest.toString('utf8'))
+          : undefined
+      const row = rows.findLast(
+        (item) => item.skill.skillFilePath === skillFilePath && item.skill.rootPath === root.path
+      )
+      if (
+        root.id === 'codex-plugin-cache' &&
+        namespace &&
+        row &&
+        !row.skill.pluginNamespaces?.length
+      ) {
+        row.skill.pluginNamespaces = [namespace]
+      }
+      continue
+    }
     if (recordKind !== 'S') {
       throw new Error('WSL skill discovery returned an invalid response.')
     }
@@ -75,6 +96,7 @@ export function readWslSkillDiscoveryObservation(
         sourceLabel: sourceLabelForSkill(root, sourceKind),
         rootPath: root.path,
         rootPaths: [root.path],
+        ...(root.pluginNamespaces ? { pluginNamespaces: [...root.pluginNamespaces] } : {}),
         directoryPath,
         skillFilePath,
         installed: true,
@@ -122,6 +144,11 @@ export function projectWslSkillDiscovery(
     // Filter aliases before deduplication; each name/source may select a different row.
     const existing = skillsByCanonicalPath.get(canonicalSkillFilePath)
     if (existing) {
+      if (skill.pluginNamespaces?.length) {
+        existing.pluginNamespaces = [
+          ...new Set([...(existing.pluginNamespaces ?? []), ...skill.pluginNamespaces])
+        ]
+      }
       const existingRoots = (existing.rootPaths ??= [existing.rootPath])
       for (const rootPath of skill.rootPaths ?? [skill.rootPath]) {
         if (!existingRoots.includes(rootPath)) {
@@ -138,7 +165,8 @@ export function projectWslSkillDiscovery(
     skillsByCanonicalPath.set(canonicalSkillFilePath, {
       ...skill,
       providers: [...skill.providers],
-      rootPaths: [...(skill.rootPaths ?? [skill.rootPath])]
+      rootPaths: [...(skill.rootPaths ?? [skill.rootPath])],
+      ...(skill.pluginNamespaces ? { pluginNamespaces: [...skill.pluginNamespaces] } : {})
     })
   }
   return {

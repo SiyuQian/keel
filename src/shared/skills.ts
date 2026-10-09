@@ -18,6 +18,8 @@ export type DiscoveredSkill = {
   /** Every root that reached this file. Canonical-path dedup keeps one row but
    *  must not erase co-owning roots, or shared symlinked skills lose agents. */
   rootPaths?: string[]
+  /** Verified plugin identities from all contributing installation sources. */
+  pluginNamespaces?: string[]
   directoryPath: string
   skillFilePath: string
   installed: boolean
@@ -32,6 +34,7 @@ export type SkillDiscoverySource = {
   providers: SkillProvider[]
   /** Agent that owns this root; null is the explicit shared-skills scope. */
   owner: AgentType | null
+  pluginNamespaces?: string[]
   exists: boolean
   /** `unavailable`: the root did not answer in time, so its skills are unknown rather than absent. */
   skippedReason?: 'missing' | 'remote-repo' | 'unavailable'
