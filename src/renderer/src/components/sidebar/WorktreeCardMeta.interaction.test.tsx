@@ -3,7 +3,7 @@
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { WorktreeCardDetailsHover } from './WorktreeCardMeta'
+import { WorktreeCardDetailsHover, WorktreeCardMetaBadges } from './WorktreeCardMeta'
 
 const toastMocks = vi.hoisted(() => ({
   success: vi.fn(),
@@ -396,4 +396,86 @@ describe('WorktreeCardDetailsHover interactions', () => {
 
     expect(onOpenIssueInBrowser).toHaveBeenCalledWith('https://github.com/acme/orca/issues/5518')
   })
+})
+
+describe('sidebar review badge interactions', () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    container = document.createElement('div')
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it.each([
+    ['github', 'PR #456'],
+    ['gitlab', 'MR #456']
+  ] as const)(
+    'isolates the %s review link from workspace selection and dragging',
+    (provider, label) => {
+      const onRowClick = vi.fn()
+      const onRowPointerDown = vi.fn()
+      act(() => {
+        root.render(
+          <div onClick={onRowClick} onPointerDown={onRowPointerDown} draggable>
+            <WorktreeCardMetaBadges
+              issue={null}
+              linearIssue={null}
+              comment={null}
+              review={{ ...reviewFixture, provider }}
+            />
+          </div>
+        )
+      })
+      const link = container.querySelector('a')
+      expect(link?.textContent).toBe(label)
+      expect(link?.getAttribute('href')).toBe(reviewFixture.url)
+      expect(link?.getAttribute('draggable')).toBe('false')
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+      act(() => {
+        link?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+        link?.dispatchEvent(click)
+      })
+      expect(onRowClick).not.toHaveBeenCalled()
+      expect(onRowPointerDown).not.toHaveBeenCalled()
+      expect(click.defaultPrevented).toBe(false)
+    }
+  )
+
+  it.each([
+    ['github', 'PR #456'],
+    ['gitlab', 'MR #456']
+  ] as const)(
+    'keeps a %s review without a URL passive and lets the workspace handle events',
+    (provider, label) => {
+      const onRowClick = vi.fn()
+      const onRowPointerDown = vi.fn()
+      act(() => {
+        root.render(
+          <div onClick={onRowClick} onPointerDown={onRowPointerDown}>
+            <WorktreeCardMetaBadges
+              issue={null}
+              linearIssue={null}
+              comment={null}
+              review={{ ...reviewFixture, provider, url: undefined }}
+            />
+          </div>
+        )
+      })
+      expect(container.querySelector('a, button, [role="button"]')).toBeNull()
+      const badge = container.querySelector('[data-slot="badge"]')
+      expect(badge?.textContent).toBe(label)
+      act(() => {
+        badge?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+        badge?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      })
+      expect(onRowClick).toHaveBeenCalledTimes(1)
+      expect(onRowPointerDown).toHaveBeenCalledTimes(1)
+    }
+  )
 })
