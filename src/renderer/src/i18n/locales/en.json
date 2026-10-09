@@ -19287,7 +19287,7 @@
       "noProject": "No TypeScript or JavaScript project includes this file.",
       "remote": "Code intelligence is not available on remote or SSH worktrees yet.",
       "cancelled": "request cancelled",
-      "bufferLimit": "Too many or oversized open buffers. Save or close other files before navigating."
+      "bufferLimit": "Open code, JSON, config or unsaved buffers exceed navigation limits. Close other relevant tabs or reduce oversized buffers. Saved code and config files still count."
     }
   }
 }

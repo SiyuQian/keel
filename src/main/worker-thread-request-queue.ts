@@ -40,6 +40,8 @@ export type WorkerThreadRequestQueueOptions<TRequest> = {
    * spawning beside it. For workers whose native calls delay termination.
    */
   awaitRetirement?: boolean
+  /** Settle canceled callers while synchronous active work keeps its slot and deadline. */
+  retainActiveSlotOnAbort?: boolean
 }
 
 export type WorkerThreadRequestOwner = { readonly signal: AbortSignal }
@@ -133,6 +135,11 @@ export class WorkerThreadRequestQueue<
       }
       const abort = (): void => {
         if (this.active === call) {
+          if (this.options.retainActiveSlotOnAbort) {
+            call.cleanupAbort()
+            reject(signal?.reason ?? new Error('Worker request aborted'))
+            return
+          }
           this.host.destroy()
         } else {
           this.queue = this.queue.filter((queued) => queued !== call)

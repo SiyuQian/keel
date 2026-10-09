@@ -94,6 +94,36 @@ it('terminates timed-out work and settles concurrent requests', async () => {
     vi.useRealTimers()
   }
 })
+it('does not retire the worker for queue wait', async () => {
+  vi.useFakeTimers()
+  const worker = new Transport()
+  const client = new CodeIntelSidecarClient(() => worker)
+  try {
+    const first = client.query('definition', params)
+    const second = client.query('references', params)
+    await vi.advanceTimersByTimeAsync(25_000)
+    worker.emit('message', {
+      id: worker.postMessage.mock.calls[0][0].id,
+      result: { status: 'ok', bufferVersion: 1, locations: [], truncated: false }
+    })
+    expect(await first).toMatchObject({ status: 'ok' })
+    let settled = false
+    void second.then(() => {
+      settled = true
+    })
+    await vi.advanceTimersByTimeAsync(25_000)
+    expect(settled).toBe(false)
+    expect(worker.terminate).not.toHaveBeenCalled()
+    worker.emit('message', {
+      id: worker.postMessage.mock.calls[1][0].id,
+      result: { status: 'ok', bufferVersion: 1, locations: [], truncated: false }
+    })
+    expect(await second).toMatchObject({ status: 'ok' })
+  } finally {
+    client.shutdown()
+    vi.useRealTimers()
+  }
+})
 it('does not start an already cancelled query', async () => {
   const factory = vi.fn(() => new Transport())
   const client = new CodeIntelSidecarClient(factory)
@@ -107,6 +137,7 @@ it('does not start an already cancelled query', async () => {
 })
 
 it('waits for retirement before permitting a replacement worker', async () => {
+  vi.useFakeTimers()
   let finish: (value: number) => void = () => {}
   const worker = new Transport()
   worker.terminate.mockImplementation(
@@ -119,8 +150,8 @@ it('waits for retirement before permitting a replacement worker', async () => {
   const client = new CodeIntelSidecarClient(factory)
   const abort = new AbortController()
   const pending = client.query('definition', params, abort.signal)
-  client.shutdown()
-  await pending
+  await vi.advanceTimersByTimeAsync(30_000)
+  expect(await pending).toMatchObject({ code: 'timeout' })
   expect(await client.query('definition', params)).toMatchObject({ code: 'worker-unavailable' })
   expect(factory).toHaveBeenCalledOnce()
   finish(0)
@@ -130,6 +161,50 @@ it('waits for retirement before permitting a replacement worker', async () => {
   expect(factory).toHaveBeenCalledTimes(2)
   client.shutdown()
   await replacement
+  vi.useRealTimers()
+})
+
+it('bounds active and queued work even after active cancellation', async () => {
+  const worker = new Transport()
+  const client = new CodeIntelSidecarClient(() => worker)
+  const active = new AbortController()
+  const queued = new AbortController()
+  const calls = [
+    client.query('definition', params, active.signal),
+    client.query('definition', params, queued.signal),
+    ...Array.from({ length: 6 }, () => client.query('references', params))
+  ]
+  active.abort()
+  expect(await calls[0]).toMatchObject({ code: 'cancelled' })
+  expect(await client.query('definition', params)).toMatchObject({ code: 'busy' })
+  queued.abort()
+  expect(await calls[1]).toMatchObject({ code: 'cancelled' })
+  const replacement = client.query('definition', params)
+  expect(worker.postMessage).toHaveBeenCalledOnce()
+  client.shutdown()
+  expect(await replacement).toMatchObject({ code: 'shutdown' })
+  await Promise.all(calls)
+})
+
+it('retires idle workers after completing a query', async () => {
+  vi.useFakeTimers()
+  const worker = new Transport()
+  const client = new CodeIntelSidecarClient(() => worker)
+  try {
+    const call = client.query('definition', params)
+    worker.emit('message', {
+      id: worker.postMessage.mock.calls[0][0].id,
+      result: { status: 'ok', bufferVersion: 1, locations: [], truncated: false }
+    })
+    await call
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(worker.terminate).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(worker.terminate).toHaveBeenCalledOnce()
+  } finally {
+    client.shutdown()
+    vi.useRealTimers()
+  }
 })
 
 it('bounds cancelled CPU work by the original deadline', async () => {

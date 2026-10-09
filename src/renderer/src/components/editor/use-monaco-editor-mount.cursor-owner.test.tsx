@@ -22,6 +22,9 @@ vi.mock('./monaco-e2e-probe', () => ({ installMonacoE2EProbe: () => vi.fn() }))
 vi.mock('./monaco-editor-input-bindings', () => ({
   installMonacoEditorInputBindings: () => ({ disposeInputBindings: vi.fn() })
 }))
+vi.mock('@/lib/monaco-code-intel-hover-link', () => ({
+  installCodeIntelHoverLink: () => ({ dispose: vi.fn() })
+}))
 
 afterEach(cleanup)
 

@@ -38,6 +38,7 @@ vi.mock('monaco-editor', () => ({
   }
 }))
 import { resolveCodeIntelContext, installCodeIntelStoreBinding } from './code-intel-store-binding'
+import { queryCodeIntel } from './code-intel-client'
 const file: OpenFile = {
   id: '/repo/a.ts',
   filePath: '/repo/a.ts',
@@ -185,4 +186,127 @@ it('analyzes a clean open target model and rejects its result after a reload', (
   ])
   version = 2
   expect(context?.isCurrent()).toBe(false)
+})
+
+it('navigates with unrelated large clean files without sending their snapshots', async () => {
+  const unrelated = ['pnpm-lock.yaml', 'README.md', 'app.css', 'output.log'].map((name) => ({
+    ...file,
+    id: `/repo/${name}`,
+    filePath: `/repo/${name}`,
+    isDirty: false
+  }))
+  fixture.state.openFiles = [file, ...unrelated]
+  const read = vi.fn(() => 'x'.repeat(4_000_001))
+  for (const candidate of unrelated) {
+    fixture.models.set(URI.file(candidate.filePath).toString(), {
+      getValue: read,
+      getVersionId: () => 1,
+      isDisposed: () => false
+    })
+  }
+  const context = resolveCodeIntelContext(model('file:///repo/a.ts'))
+  expect(context?.buffers).toHaveLength(0)
+  const definition = vi.fn().mockResolvedValue({ status: 'ok', locations: [], truncated: false })
+  vi.stubGlobal('window', { api: { codeIntel: { definition } } })
+  try {
+    expect(
+      await queryCodeIntel('definition', {
+        workspaceId: 'r::/repo',
+        workspaceRoot: '/repo',
+        executionHostId: 'local',
+        filePath: file.filePath,
+        relativePath: file.relativePath,
+        position: { line: 0, character: 0 },
+        bufferVersion: 1,
+        bufferText: 'export const a = 1',
+        buffers: context?.buffers
+      })
+    ).toMatchObject({ status: 'ok' })
+    expect(definition).toHaveBeenCalledOnce()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it.each([
+  { text: '// config\n{ "compilerOptions": {} }', dirty: false, draft: false },
+  { text: '', dirty: true, draft: false },
+  { text: 'not valid JSON', dirty: true, draft: false },
+  { text: '', dirty: false, draft: true }
+])(
+  'retains nonstandard config input $text (dirty: $dirty, draft: $draft)',
+  ({ text, dirty, draft }) => {
+    const candidate = { ...file, id: '/repo/base.txt', filePath: '/repo/base.txt', isDirty: dirty }
+    fixture.state.openFiles = [file, candidate]
+    if (draft) {
+      fixture.state.editorDrafts[candidate.id] = text
+    } else {
+      fixture.models.set(
+        URI.file(candidate.filePath).toString(),
+        model(candidate.filePath, text, 2)
+      )
+    }
+    expect(resolveCodeIntelContext(model('file:///repo/a.ts'))?.buffers).toEqual([
+      { filePath: candidate.filePath, text, version: draft ? 0 : 2 }
+    ])
+  }
+)
+
+it.each(['b.tsx', 'b.mts', 'b.cjs', 'data.json', 'package.json', 'config/app.json', 'base.jsonc'])(
+  'preserves clean and draft-only semantic snapshots for %s',
+  (name) => {
+    const candidate = { ...file, id: `/repo/${name}`, filePath: `/repo/${name}`, isDirty: false }
+    fixture.state.openFiles = [file, candidate]
+    fixture.models.set(
+      URI.file(candidate.filePath).toString(),
+      model(candidate.filePath, 'model text', 2)
+    )
+    const context = resolveCodeIntelContext(model('file:///repo/a.ts'))
+    expect(context?.buffers).toEqual([
+      { filePath: candidate.filePath, text: 'model text', version: 2 }
+    ])
+    fixture.models.clear()
+    fixture.state.editorDrafts[candidate.id] = 'unsaved draft'
+    expect(resolveCodeIntelContext(model('file:///repo/a.ts'))?.buffers).toEqual([
+      { filePath: candidate.filePath, text: 'unsaved draft', version: 0 }
+    ])
+  }
+)
+
+it('keeps relevant clean snapshots when their budget is exceeded instead of querying stale disk text', async () => {
+  const candidate = {
+    ...file,
+    id: '/repo/large.json',
+    filePath: '/repo/large.json',
+    isDirty: false
+  }
+  fixture.state.openFiles = [file, candidate]
+  fixture.models.set(
+    URI.file(candidate.filePath).toString(),
+    model(candidate.filePath, ' '.repeat(4_000_001), 2)
+  )
+  const context = resolveCodeIntelContext(model('file:///repo/a.ts'))
+  expect(context?.buffers.map((buffer) => [buffer.filePath, buffer.text.length])).toEqual([
+    ['/repo/large.json', 4_000_001]
+  ])
+  const definition = vi.fn()
+  vi.stubGlobal('window', { api: { codeIntel: { definition } } })
+  try {
+    expect(
+      await queryCodeIntel('definition', {
+        workspaceId: 'r::/repo',
+        workspaceRoot: '/repo',
+        executionHostId: 'local',
+        filePath: file.filePath,
+        relativePath: file.relativePath,
+        position: { line: 0, character: 0 },
+        bufferVersion: 1,
+        bufferText: 'export const a = 1',
+        buffers: context?.buffers
+      })
+    ).toMatchObject({ code: 'buffer-limit' })
+    expect(definition).not.toHaveBeenCalled()
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })

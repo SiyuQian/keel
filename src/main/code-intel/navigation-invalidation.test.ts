@@ -147,3 +147,93 @@ it('does not reuse overlays across workspace snapshots', () => {
     expect(result.locations[0]?.range.start.line).toBe(0)
   }
 })
+
+it('uses loaded JSON text for imported property ranges instead of newer disk text', async () => {
+  await writeFile(
+    join(root, 'tsconfig.json'),
+    JSON.stringify({
+      compilerOptions: { resolveJsonModule: true, module: 'esnext', moduleResolution: 'bundler' }
+    })
+  )
+  await writeFile(join(root, 'data.json'), '\n\n{ "value": 1 }')
+  const result = getDefinition(pool, {
+    ...request(),
+    bufferText: 'import { value } from "./data.json"\nvalue\n',
+    buffers: [{ filePath: join(root, 'data.json'), text: '{ "value": 2 }', version: 2 }]
+  })
+  expect(result.status).toBe('ok')
+  if (result.status === 'ok') {
+    expect(result.locations[0]?.absolutePath).toBe(join(root, 'data.json'))
+    expect(result.locations[0]?.range.start.line).toBe(0)
+  }
+})
+
+it('reads unsaved extended JSONC config inputs', async () => {
+  await writeFile(join(root, 'base.jsonc'), '{}')
+  await writeFile(join(root, 'tsconfig.json'), JSON.stringify({ extends: './base.jsonc' }))
+  const result = getDefinition(pool, {
+    ...request(),
+    bufferText: 'import { value } from "@a"\nvalue\n',
+    buffers: [
+      {
+        filePath: join(root, 'base.jsonc'),
+        text: '{ // unsaved alias\n "compilerOptions": { "paths": { "@a": ["./a.ts"] } } }',
+        version: 2
+      }
+    ]
+  })
+  expect(result.status).toBe('ok')
+  if (result.status === 'ok') {
+    expect(result.locations[0]?.absolutePath).toBe(join(root, 'a.ts'))
+  }
+})
+
+it('reads unsaved package metadata when resolving a directory import', async () => {
+  await mkdir(join(root, 'pkg'))
+  await writeFile(join(root, 'pkg/package.json'), '{ "types": "old.d.ts" }')
+  await writeFile(join(root, 'pkg/old.d.ts'), 'export const value: number')
+  await writeFile(join(root, 'pkg/new.d.ts'), '\nexport const value: number')
+  const result = getDefinition(pool, {
+    ...request(),
+    bufferText: 'import { value } from "./pkg"\nvalue\n',
+    buffers: [
+      { filePath: join(root, 'pkg/package.json'), text: '{ "types": "new.d.ts" }', version: 2 }
+    ]
+  })
+  expect(result.status).toBe('ok')
+  if (result.status === 'ok') {
+    expect(result.locations[0]?.absolutePath).toBe(join(root, 'pkg/new.d.ts'))
+    expect(result.locations[0]?.range.start.line).toBe(1)
+  }
+})
+
+it.each(['', 'not valid JSON'])(
+  'does not fall back to a valid disk config for the unsaved input %j',
+  async (text) => {
+    await writeFile(
+      join(root, 'base.txt'),
+      '{ "compilerOptions": { "paths": { "@a": ["./a.ts"] } } }'
+    )
+    await writeFile(join(root, 'tsconfig.json'), '{ "extends": "./base.txt" }')
+    const args = { ...request(), bufferText: 'import { value } from "@a"\nvalue\n' }
+    const disk = getDefinition(pool, args)
+    expect(disk.status).toBe('ok')
+    if (disk.status === 'ok') {
+      expect(disk.locations[0]?.absolutePath).toBe(join(root, 'a.ts'))
+    }
+    const unsaved = getDefinition(pool, {
+      ...args,
+      buffers: [{ filePath: join(root, 'base.txt'), text, version: 2 }]
+    })
+    if (text === '') {
+      expect(unsaved.status).toBe('ok')
+      if (unsaved.status === 'ok') {
+        expect(unsaved.locations.map((location) => location.absolutePath)).toEqual([
+          join(root, 'b.ts')
+        ])
+      }
+    } else {
+      expect(unsaved.status).toBe('error')
+    }
+  }
+)

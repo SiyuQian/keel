@@ -24,6 +24,8 @@ export function installCodeIntelHoverLink(
 ): monaco.IDisposable {
   const decorations = editor.createDecorationsCollection([])
   let activeKey: string | null = null
+  let pendingKey: string | null = null
+  let keyModel: monaco.editor.ITextModel | null = null
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   // Bumped to invalidate any in-flight async query whose result is now stale.
   let queryToken = 0
@@ -38,6 +40,7 @@ export function installCodeIntelHoverLink(
   }
 
   function cancelPending(): void {
+    pendingKey = null
     if (debounceTimer !== null) {
       clearTimeout(debounceTimer)
       debounceTimer = null
@@ -59,24 +62,31 @@ export function installCodeIntelHoverLink(
   }
 
   function evaluate(line: number, word: monaco.editor.IWordAtPosition): void {
-    const key = wordKey(line, word)
-    if (key === activeKey) {
-      // Already underlined this exact word — nothing to do.
-      return
-    }
-    cancelPending()
     const model = editor.getModel()
     if (!model) {
       return
     }
+    const version = model.getVersionId()
+    const key = `${version}:${wordKey(line, word)}`
+    if (model === keyModel && (key === activeKey || key === pendingKey)) {
+      return
+    }
+    cancelPending()
+    clearLink()
     const ctx = resolveCodeIntelWorktree(model)
     if (!ctx) {
       clearLink()
       return
     }
+    keyModel = model
+    pendingKey = key
     const token = queryToken
     debounceTimer = setTimeout(() => {
       debounceTimer = null
+      if (editor.getModel() !== model || model.getVersionId() !== version) {
+        cancelPending()
+        return
+      }
       const source = new monaco.CancellationTokenSource()
       cancellation = source
       const args = buildReferenceRequest({
@@ -90,8 +100,14 @@ export function installCodeIntelHoverLink(
         isDirty: ctx.isDirty
       })
       void queryCodeIntel('definition', args, source.token).then((result) => {
+        if (token !== queryToken) {
+          return
+        }
+        pendingKey = null
+        cancellation = null
+        source.dispose()
         if (
-          token !== queryToken ||
+          editor.getModel() !== model ||
           !isCodeIntelEnabled() ||
           !ctx.isCurrent() ||
           model.getVersionId() !== args.bufferVersion

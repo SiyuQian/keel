@@ -47,14 +47,13 @@ export async function queryCodeIntel(
       code: 'buffer-limit',
       message: translate(
         'codeIntel.result.bufferLimit',
-        'Too many or oversized open buffers. Save or close other files before navigating.'
+        'Open code, JSON, config or unsaved buffers exceed navigation limits. Close other relevant tabs or reduce oversized buffers. Saved code and config files still count.'
       )
     }
   }
   const bridge = window.api.codeIntel
   const requestId = nextRequestId++
-  // Why: forward the cancellation downstream — the main process aborts the
-  // in-flight sidecar query keyed by this request id.
+  // Cancellation settles this caller and drops queued work while active work keeps its slot and deadline.
   const subscription = token?.onCancellationRequested(() => bridge.cancel(requestId))
   try {
     const payload = { ...args, requestId }

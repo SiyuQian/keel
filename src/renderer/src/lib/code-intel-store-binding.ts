@@ -1,4 +1,5 @@
 import * as monaco from 'monaco-editor'
+import { createScanner } from 'jsonc-parser'
 import { useAppStore } from '@/store'
 import { getEditorModelOwnerKey } from '@/components/editor/editor-model-owner'
 import { toEditorModelUri } from '@/components/editor/editor-model-uri'
@@ -60,6 +61,21 @@ export function resolveCodeIntelContext(
     const text = bufferModel?.getValue() ?? state.editorDrafts[candidate.id]
     if (text === undefined) {
       continue
+    }
+    const language = detectLanguage(candidate.filePath)
+    // Config extends accepts arbitrary filenames; unsaved malformed inputs must never fall back to disk.
+    if (
+      !candidate.isDirty &&
+      state.editorDrafts[candidate.id] === undefined &&
+      language !== 'typescript' &&
+      language !== 'javascript' &&
+      language !== 'json'
+    ) {
+      const scanner = createScanner(text, true)
+      scanner.scan()
+      if (text[scanner.getTokenOffset()] !== '{') {
+        continue
+      }
     }
     const version = bufferModel?.getVersionId() ?? 0
     buffers.push({ filePath: candidate.filePath, text, version })
