@@ -12,7 +12,9 @@ const fixtures = steps.find((step) => step.name === 'Fetch historical Orca compa
 const roots = []
 
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  for (const root of roots.splice(0)) {
+    rmSync(root, { recursive: true, force: true })
+  }
 })
 
 it.each([false, true])(
@@ -37,7 +39,9 @@ it.each([false, true])(
       'release'
     ])
     const release = git(['rev-parse', 'HEAD'])
-    if (released) git(['tag', 'v0.1.0'])
+    if (released) {
+      git(['tag', 'v0.1.0'])
+    }
     git([
       '-c',
       'user.name=Test',
