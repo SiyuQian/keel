@@ -56,6 +56,10 @@ it.each(['registry', 'settings', 'manifest', 'root'])(
     await fs.writeFile(join(packageRoot, '.codex-plugin', 'plugin.json'), '{"name":"verified"}')
     const original = actualFs.stat
     let blocked = 0
+    let markEntered!: () => void
+    const entered = new Promise<void>((resolve) => {
+      markEntered = resolve
+    })
     let finish!: (value: Awaited<ReturnType<typeof fs.stat>>) => void
     const heldStats = await original(home)
     vi.spyOn(fs, 'stat').mockImplementation((path) => {
@@ -72,6 +76,7 @@ it.each(['registry', 'settings', 'manifest', 'root'])(
         return original(path)
       }
       blocked++
+      markEntered()
       return new Promise((resolve) => {
         finish = resolve
         releases.push(() => resolve(heldStats))
@@ -83,9 +88,7 @@ it.each(['registry', 'settings', 'manifest', 'root'])(
       (value) => ({ value }),
       (error) => ({ error })
     )
-    for (let i = 0; i < 500 && !blocked; i++) {
-      await yieldIO()
-    }
+    await entered
     expect(blocked).toBe(1)
     await vi.advanceTimersByTimeAsync(11000)
     await drain()
@@ -111,10 +114,15 @@ it('refreshes YAML while an older Skill document read remains pending', async ()
   const original = reader.readNodeFileWithinLimit
   const sourceStats = await fs.stat(join(owner, 'SKILL.md'))
   let blocked = 0
+  let markEntered!: () => void
+  const entered = new Promise<void>((resolve) => {
+    markEntered = resolve
+  })
   let finish!: (value: reader.BoundedNodeFileRead) => void
   vi.spyOn(reader, 'readNodeFileWithinLimit').mockImplementation((path, limit, options) => {
     if (path === join(owner, 'SKILL.md')) {
       blocked++
+      markEntered()
       return new Promise((resolve) => {
         finish = resolve
         releases.push(() => resolve({ buffer: Buffer.from('# Source'), stats: sourceStats }))
@@ -124,9 +132,7 @@ it('refreshes YAML while an older Skill document read remains pending', async ()
   })
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
   const old = discoverSkillsOnTarget(target, [], { includeWorkflows: true }).catch(() => undefined)
-  for (let i = 0; i < 500 && !blocked; i++) {
-    await yieldIO()
-  }
+  await entered
   expect(blocked).toBe(1)
   await fs.writeFile(
     join(owner, 'workflow.yaml'),
