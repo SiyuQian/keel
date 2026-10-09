@@ -15,9 +15,12 @@ import type {
 } from '../shared/ephemeral-vm-recipes'
 import { DOCKER_WORKSPACE_RECIPE } from '../shared/docker-workspace-recipe'
 
+const LOCAL_DOCKER_ENDPOINT =
+  /^(?:unix:\/\/\/[^\0\r\n]+|npipe:\/\/(?:\/\/\.\/pipe\/|\\\\\.\\pipe\\)[^/\\\0\r\n]+)$/
+
 export const DockerBindingSchema = z.object({
   cli: z.string().min(1),
-  endpoint: z.string().regex(/^(unix:\/\/\/|npipe:\/\/)/),
+  endpoint: z.string().regex(LOCAL_DOCKER_ENDPOINT),
   engineId: z.string().min(1)
 })
 export type DockerBinding = z.infer<typeof DockerBindingSchema>
@@ -116,7 +119,7 @@ export async function resolveDockerBinding(signal?: AbortSignal): Promise<Docker
     }
     endpoint = ContextSchema.parse(JSON.parse(context.stdout))[0].Endpoints.docker.Host
   }
-  if (!/^(unix:\/\/\/|npipe:\/\/)/.test(endpoint)) {
+  if (!LOCAL_DOCKER_ENDPOINT.test(endpoint)) {
     throw new Error(
       'Docker workspaces require a local Unix socket or Windows named pipe. Select a local Docker context.'
     )

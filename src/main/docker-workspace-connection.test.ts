@@ -7,7 +7,9 @@ import {
   createDockerIdentity,
   dockerCommand,
   doctorDockerWorkspace,
-  resolveDockerBinding
+  resolveDockerBinding,
+  verifyDockerBinding,
+  DockerBindingSchema
 } from './docker-workspace-connection'
 const { run, resolve } = vi.hoisted(() => ({ run: vi.fn(), resolve: vi.fn() }))
 vi.mock('../shared/child-process/run-process', () => ({ runProcess: run }))
@@ -56,16 +58,25 @@ describe('Docker prerequisites', () => {
     run.mockResolvedValue(success(JSON.stringify({ ID: 'engine', OSType: 'windows' })))
     expect((await doctorDockerWorkspace('/repo')).ok).toBe(false)
   })
-  it.each(['ssh://remote', 'tcp://127.0.0.1:2375', 'https://engine.example'])(
-    'rejects nonlocal endpoints %s before contacting them',
-    async (endpoint) => {
-      vi.stubEnv('DOCKER_HOST', endpoint)
-      await expect(resolveDockerBinding()).rejects.toThrow(
-        'local Unix socket or Windows named pipe'
-      )
-      expect(run).not.toHaveBeenCalled()
-    }
-  )
+  it.each([
+    'ssh://remote',
+    'tcp://127.0.0.1:2375',
+    'https://engine.example',
+    'npipe:////remote-host/pipe/docker_engine',
+    String.raw`npipe://\\remote-host\pipe\docker_engine`,
+    'npipe:////./pipe/',
+    'npipe:////./pipe/docker_engine/extra',
+    'unix://remote-host/socket',
+    'unix:///'
+  ])('rejects nonlocal endpoints %s before contacting them', async (endpoint) => {
+    vi.stubEnv('DOCKER_HOST', endpoint)
+    await expect(resolveDockerBinding()).rejects.toThrow('local Unix socket or Windows named pipe')
+    expect(run).not.toHaveBeenCalled()
+    expect(
+      DockerBindingSchema.safeParse({ cli: '/installed/docker', endpoint, engineId: 'engine' })
+        .success
+    ).toBe(false)
+  })
   it('captures the context endpoint and removes later Docker environment overrides', async () => {
     vi.stubEnv('DOCKER_CONTEXT', 'desktop-linux')
     vi.stubEnv('DOCKER_HOST', 'tcp://unrelated:2375')
@@ -104,12 +115,32 @@ describe('Docker prerequisites', () => {
     await resolveDockerBinding(controller.signal)
     expect(run.mock.calls.every(([spec]) => spec.signal === controller.signal)).toBe(true)
   })
-  it('supports a local Windows named pipe when it serves Linux containers', async () => {
-    vi.stubEnv('DOCKER_HOST', 'npipe:////./pipe/docker_engine')
+  it.each([
+    'npipe:////./pipe/docker_engine',
+    'npipe:////./pipe/custom engine',
+    String.raw`npipe://\\.\pipe\custom_engine`,
+    'unix:///path with spaces/docker.sock'
+  ])('supports a local endpoint %s when it serves Linux containers', async (endpoint) => {
+    vi.stubEnv('DOCKER_HOST', endpoint)
     expect(await resolveDockerBinding()).toMatchObject({
-      endpoint: 'npipe:////./pipe/docker_engine',
+      endpoint,
       engineId: 'engine-id'
     })
+    expect(
+      DockerBindingSchema.safeParse({ cli: '/installed/docker', endpoint, engineId: 'engine' })
+        .success
+    ).toBe(true)
+  })
+  it('rejects an unavailable original executable before contacting the daemon', async () => {
+    resolve.mockReturnValue(null)
+    await expect(
+      verifyDockerBinding({
+        cli: '/installed/docker',
+        endpoint: 'unix:///local.sock',
+        engineId: 'engine'
+      })
+    ).rejects.toThrow('original Docker executable is unavailable')
+    expect(run).not.toHaveBeenCalled()
   })
   it('generates SSH identities that the existing SSH parser can read and match to the public key', () => {
     const directory = mkdtempSync(join(tmpdir(), 'orca-docker-key-roundtrip-'))

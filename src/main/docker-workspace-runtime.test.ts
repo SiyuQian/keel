@@ -272,6 +272,26 @@ describe('native Docker workspaces', () => {
     expect(run.mock.calls.some(([spec]) => spec.args?.[2] === 'rm')).toBe(false)
     expect(existsSync(join(root, 'docker-workspaces', containerName, 'id_ecdsa'))).toBe(true)
   })
+  it('cleans the identity without removal when the original engine proves an identified container absent', async () => {
+    const result = await start()
+    if (!result.ok) {
+      throw new Error(result.error)
+    }
+    const identityDirectory = join(root, 'docker-workspaces', containerName)
+    expect(existsSync(identityDirectory)).toBe(true)
+    containerName = ''
+    run.mockClear()
+    const cleanup = await runEphemeralVmRecipeCleanup({
+      recipe: DOCKER_WORKSPACE_RECIPE,
+      repoPath: root,
+      context: result.context,
+      recipeResult: result.result,
+      userDataPath: root
+    })
+    expect(cleanup.ok).toBe(true)
+    expect(existsSync(identityDirectory)).toBe(false)
+    expect(run.mock.calls.map(([spec]) => spec.args?.[2])).toEqual(['info', 'container'])
+  })
   it('retains recovery metadata when create returns no identity and absence cannot settle its outcome', async () => {
     const original = run.getMockImplementation()!
     run.mockImplementation(async (spec) =>

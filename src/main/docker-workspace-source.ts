@@ -76,12 +76,22 @@ export async function copyDockerWorkspaceSource(
     options.onStderr?.(
       'Exporting the selected Git commit without host credentials or uncommitted edits…\n'
     )
-    await execute(['init', '--bare', `--template=${empty}`, bare])
+    // SHA-256 needs matching storage. SHA-1 keeps the Git 2.25-compatible init command.
+    await execute([
+      'init',
+      '--bare',
+      `--template=${empty}`,
+      ...(sha.length === 64 ? ['--object-format=sha256'] : []),
+      bare
+    ])
+    // Protocol v2 can fetch a selected non-tip commit on Git 2.25.
     await execute([
       '-C',
       bare,
       '-c',
       'protocol.file.allow=always',
+      '-c',
+      'protocol.version=2',
       'fetch',
       '--no-tags',
       '--no-recurse-submodules',

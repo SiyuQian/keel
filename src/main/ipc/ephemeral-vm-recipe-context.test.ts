@@ -8,7 +8,8 @@ import {
   combineEphemeralVmRecipes,
   listRecipes,
   listRecipeCatalog,
-  resolveRecipeForRepo
+  resolveRecipeForRepo,
+  getRecipeRepo
 } from './ephemeral-vm-recipe-context'
 
 const repo = {
@@ -55,4 +56,13 @@ describe('built-in Docker discovery', () => {
     const authored = { id: 'custom', name: 'Custom', create: 'create' }
     expect(listRecipes(storeFor(), 'repo', [authored]).recipes).toEqual([authored])
   })
+  it.each(['runtime:remote', 'ssh:remote'])(
+    'rejects unified remote execution host %s without a connection ID',
+    (executionHostId) => {
+      expect(getRecipeRepo(storeFor({ executionHostId }), 'repo')).toMatchObject({
+        ok: false,
+        message: expect.stringContaining('local desktop host')
+      })
+    }
+  )
 })

@@ -73,9 +73,7 @@ async function inspectOwned(metadata: DockerMetadata, signal?: AbortSignal) {
     inspected.Config.Labels?.[PROVIDER_LABEL] !== 'docker-workspace-v1' ||
     (metadata.containerId && inspected.Id !== metadata.containerId)
   ) {
-    throw new Error(
-      'Docker container ownership changed. Refusing to manage an unrelated container.'
-    )
+    throw new Error('Docker ownership changed. Refusing to manage an unrelated container.')
   }
   return inspected
 }

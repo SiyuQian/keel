@@ -13,8 +13,28 @@ import {
   runEphemeralVmRecipeSuspend
 } from './ephemeral-vm-recipe-runner'
 import type { OrcaVmRecipe } from '../shared/orca-yaml-hook-types'
+import { DOCKER_WORKSPACE_RECIPE, isDockerWorkspaceRecipe } from '../shared/docker-workspace-recipe'
 
 const tmpRoots: string[] = []
+
+describe('native Docker recipe identity', () => {
+  it('accepts an unchanged persisted descriptor', () => {
+    expect(isDockerWorkspaceRecipe({ ...DOCKER_WORKSPACE_RECIPE })).toBe(true)
+  })
+  it.each<Partial<OrcaVmRecipe>>([
+    { id: 'custom' },
+    { name: 'Custom' },
+    { description: undefined },
+    { checkoutMode: 'orca-worktree' },
+    { create: 'custom create' },
+    { suspend: undefined },
+    { resume: 'custom resume' },
+    { destroy: 'custom destroy' },
+    { destroyDisabled: true }
+  ])('retains authored dispatch when descriptor fields differ: %o', (change) => {
+    expect(isDockerWorkspaceRecipe({ ...DOCKER_WORKSPACE_RECIPE, ...change })).toBe(false)
+  })
+})
 
 afterEach(() => {
   for (const root of tmpRoots.splice(0)) {

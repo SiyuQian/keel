@@ -14,8 +14,13 @@ export const DOCKER_WORKSPACE_RECIPE: OrcaVmRecipe = {
 export function isDockerWorkspaceRecipe(recipe: OrcaVmRecipe): boolean {
   return (
     Object.keys(recipe).length === Object.keys(DOCKER_WORKSPACE_RECIPE).length &&
-    Object.entries(DOCKER_WORKSPACE_RECIPE).every(
-      ([key, value]) => Reflect.get(recipe, key) === value
-    )
+    recipe.id === DOCKER_WORKSPACE_RECIPE.id &&
+    recipe.name === DOCKER_WORKSPACE_RECIPE.name &&
+    recipe.description === DOCKER_WORKSPACE_RECIPE.description &&
+    recipe.checkoutMode === DOCKER_WORKSPACE_RECIPE.checkoutMode &&
+    recipe.create === DOCKER_WORKSPACE_RECIPE.create &&
+    recipe.suspend === DOCKER_WORKSPACE_RECIPE.suspend &&
+    recipe.resume === DOCKER_WORKSPACE_RECIPE.resume &&
+    recipe.destroy === DOCKER_WORKSPACE_RECIPE.destroy
   )
 }

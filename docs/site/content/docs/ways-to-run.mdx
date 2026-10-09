@@ -76,7 +76,7 @@ Full detail: [Remote Keel Servers](/docs/remote-servers).
 
 ## Docker workspaces
 
-For a local Git project, choose **Per-Workspace Environment → Docker** in the existing **Run on** picker. No `orca.yaml` recipe is required. Start your existing Docker Desktop, OrbStack, or Linux Docker Engine first and select Linux containers. Remote Docker endpoints, WSL-hosted projects, and pure folder projects are not supported by this entry.
+Enable **Settings → Experimental → Cloud VM** first. For a local Git project, choose **Per-Workspace Environment → Docker** in the existing **Run on** picker. No `orca.yaml` recipe is required. Start your existing Docker Desktop, OrbStack, or Linux Docker Engine first and select Linux containers. Remote Docker endpoints, WSL-hosted projects, and pure folder projects are not supported by this entry.
 
 The first workspace builds a Linux image with Git, SSH, Node, Claude Code, and Codex. Build output appears in creation progress, and creation can be cancelled. Later workspaces reuse the image cache. Each container has a 2 CPU and 4 GiB memory limit, publishes SSH only on loopback, and has no host filesystem or Docker socket mounts.
 
