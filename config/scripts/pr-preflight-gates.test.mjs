@@ -1,6 +1,14 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import { expect, it } from 'vitest'
@@ -13,6 +21,54 @@ const preflight = workflow.jobs.preflight
 const steps = preflight.steps
 const compiler = steps.find((step) => step.run === 'pnpm run typecheck')
 const plan = steps.find((step) => step.id === 'unit-plan')
+
+it('makes installed dependencies available to extracted rollback sources and cleans the link', () => {
+  const dependencyManifest = join(process.cwd(), 'node_modules', 'zod', 'package.json')
+  const installedDependency = readFileSync(dependencyManifest, 'utf8')
+  const source = readFileSync(
+    'config/scripts/run-ephemeral-vm-runtime-store-rollback-repro.mjs',
+    'utf8'
+  )
+  let extractedRoot
+  expect(() =>
+    runInNewContext(source.replace(/^import .*$/gm, ''), {
+      mkdtempSync,
+      mkdirSync,
+      rmSync,
+      writeFileSync,
+      symlinkSync,
+      tmpdir,
+      join,
+      resolve,
+      process,
+      spawnSync: (program, args, options) => {
+        if (program === 'tar') {
+          const destination = args[3]
+          mkdirSync(join(destination, 'src/shared'), { recursive: true })
+          writeFileSync(
+            join(destination, 'dependency.mjs'),
+            "import { z } from 'zod'; process.stdout.write(z.string().parse('available'))"
+          )
+        }
+        if (args[0] === 'exec' && args[1] === 'vitest') {
+          extractedRoot = options.env.STA_4274_TARGET_ROOT
+          const result = runProcessSync({
+            program: process.execPath,
+            args: [join(extractedRoot, 'dependency.mjs')],
+            cwd: process.cwd()
+          })
+          expect(result.code, result.stderr).toBe(0)
+          expect(result.stdout).toBe('available')
+          throw new Error('fixture dependencies checked')
+        }
+        return { status: 0, stdout: '', stderr: '' }
+      }
+    })
+  ).toThrow('fixture dependencies checked')
+  expect(extractedRoot).toBeDefined()
+  expect(existsSync(extractedRoot)).toBe(false)
+  expect(readFileSync(dependencyManifest, 'utf8')).toBe(installedDependency)
+})
 
 it('materializes only the rollback oracle pins after its changed-path guard', () => {
   const rollback = steps.find((step) => step.name === 'Check VM runtime rollback compatibility')
