@@ -28,4 +28,4 @@ Controls include local and SSH-backed repositories and folder workspaces, unrela
 - The new durable identity capture requires the legacy terminal row in `tabsByWorktree`. Unified-only terminal metadata is outside this fix.
 - The existing retirement primitive propagates a failed disk flush, but its attempted rollback can be rebased against the staged newer topology revision. The failure control verifies rejection and the original disk row; it does not claim successful in-memory rollback.
 - No wire fields, process-liveness verdicts, or membership-fence rules change. SSH persistence stays in its existing host partition; this does not reconcile the separate historical renderer/host partition divergence.
-- The related [original audit](../local-tab-close-rebase/README.md) traced the branch in reported **v1.4.192**. Executable comparisons use current source with this patch reversed, not the historical packaged application.
+- The related original audit (`local-tab-close-rebase`, not included in this repository) traced the branch in reported **v1.4.192**. Executable comparisons use current source with this patch reversed, not the historical packaged application.

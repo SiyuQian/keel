@@ -1,17 +1,21 @@
 # Headless Linux Server
 
+Keel inherits this runtime from Orca. Binary downloads and installer URLs below
+are upstream Orca examples, not Keel distributions. For Keel, start with the
+[source setup](../../README.md#run-from-source) and review [provenance](../UPSTREAM.md).
+
 Use this guide when you want to run `orca serve` on a Linux machine without a
 desktop session, such as an Ubuntu VPS or a remote build box.
 
-`orca serve` starts the Orca runtime without opening the desktop window. On
+`orca serve` starts the Keel runtime without opening the desktop window. On
 Linux, the packaged AppImage still needs the libraries that Electron expects at
-startup. Current Orca builds start Xvfb automatically for `orca serve` when no
+startup. Current Keel builds start Xvfb automatically for `orca serve` when no
 `DISPLAY` is set, but Xvfb must be installed first. A separate D-Bus session is
-not required. When `DISPLAY` is set, Orca uses that display instead of starting
+not required. When `DISPLAY` is set, Keel uses that display instead of starting
 a competing Xvfb process, provided the display is usable: its socket must exist,
 and if an X lock file is present it must name a running process. A `DISPLAY`
 whose lock names a dead process is refused rather than replaced, and `orca serve`
-exits — unset `DISPLAY` to let Orca start its own Xvfb. A socket published with
+exits — unset `DISPLAY` to let Keel start its own Xvfb. A socket published with
 no lock at all (a container bind-mounting `/tmp/.X11-unix`, or WSLg) is accepted.
 
 The supported deployment matrix covers Ubuntu 20.04, 22.04, and 24.04 and
@@ -90,7 +94,7 @@ even traverse it, and the run fails before Electron starts.
 
 Docker commonly has no FUSE device. Use `--appimage-extract` once or
 `--appimage-extract-and-run`; neither requires a privileged container. The
-extract-and-run wrapper can print extracted paths before Orca starts, so
+extract-and-run wrapper can print extracted paths before Keel starts, so
 automation that requires stdout to contain only the ready JSON should extract
 once and invoke `squashfs-root/AppRun`.
 
@@ -119,7 +123,7 @@ LIBGL_ALWAYS_SOFTWARE=1 /opt/orca/orca-linux.AppImage serve \
 ```
 
 `--pairing-address` is only the address advertised to clients. It does not
-change the listener bind address. Orca binds its WebSocket listener, then
+change the listener bind address. Keel binds its WebSocket listener, then
 combines the actual bound port with the advertised host when the address omits
 a port. Use a reachable LAN/Tailscale hostname or IP, or a complete reverse
 proxy URL such as `https://orca.example.com/runtime` (`http(s)` is normalized
@@ -198,7 +202,7 @@ it. `--appimage-extract` writes `squashfs-root` as `drwx------ root root`, so th
 `orca` service user cannot read or traverse the extracted tree and the unit fails
 at startup. `chmod 755 /opt/orca` alone does not reach into it.
 
-For most hosts, one `orca serve` service is enough because Orca starts Xvfb on
+For most hosts, one `orca serve` service is enough because Keel starts Xvfb on
 display `:99` when no display exists:
 
 ```ini
@@ -230,10 +234,10 @@ WantedBy=multi-user.target
 Replace `100.64.1.20` with the LAN, Tailscale, tunnel, or public hostname that
 clients should use.
 
-`KillMode=mixed` sends the graceful stop signal only to Orca's main process,
+`KillMode=mixed` sends the graceful stop signal only to Keel's main process,
 then `SIGKILL`s whatever is still in the cgroup the instant that main process
 exits — `TimeoutStopSec` only governs how long systemd waits for the main
-process itself, never a grace window for the cgroup's remains. This lets Orca
+process itself, never a grace window for the cgroup's remains. This lets Keel
 keep its owned Xvfb alive until Electron disconnects cleanly.
 
 The detached terminal daemon is preserved by a different mechanism: it is
@@ -265,7 +269,7 @@ fails closed (no `/run/systemd/system`), but that is the least of it: a
 `docker restart` tears down the container's PID namespace, so no in-container
 setting — lingering, kill mode, or scope — preserves the daemon or its PTYs
 across it. Run the container with `--init` so a real PID 1 reaps exited PTY
-subprocesses; without it, Orca is PID 1 and those children accumulate as
+subprocesses; without it, Keel is PID 1 and those children accumulate as
 zombies because nothing reaps them.
 
 Exit status `3` means another process already owns this userData profile, so
@@ -279,7 +283,7 @@ refuses a plain `systemctl start` until the 5-minute window rolls over. Run
 [Upgrade](#upgrade-steps) and [Roll back](#roll-back) scripts already do.
 On systemd older than 230 those two directives are spelled
 `StartLimitInterval=`/`StartLimitBurst=` and belong in `[Service]`; Ubuntu
-20.04, Orca's oldest supported base, ships systemd 245.
+20.04, Keel's oldest supported base, ships systemd 245.
 
 Enable the service:
 
@@ -305,7 +309,7 @@ error, or missing library.
 ## Managed Xvfb Service
 
 If you prefer to own the virtual display lifecycle in systemd, run Xvfb as a
-separate service and set `DISPLAY=:99` for Orca.
+separate service and set `DISPLAY=:99` for Keel.
 
 ```ini
 # /etc/systemd/system/orca-xvfb.service
@@ -327,7 +331,7 @@ WantedBy=multi-user.target
 If `command -v Xvfb` returned a different path, update `ExecStart` to that
 absolute path.
 
-Then add the display dependency to the Orca service:
+Then add the display dependency to the Keel service:
 
 ```ini
 # /etc/systemd/system/orca-serve.service
@@ -369,7 +373,7 @@ sudo systemctl enable --now orca-xvfb.service orca-serve.service
 ## CLI Install Note
 
 The registered Linux CLI command is `orca-ide`, not `orca`, to avoid shadowing
-the GNOME Orca screen reader. Desktop-managed terminals receive a
+the GNOME Keel screen reader. Desktop-managed terminals receive a
 terminal-scoped bare-`orca` shim. A packaged headless `orca serve` also makes a
 best-effort dispatcher at `$HOME/.local/bin/orca` for the service user's own
 shell, so the Claude Teams launcher can resolve its bare command; it does not
@@ -394,7 +398,7 @@ This disables a security boundary. Prefer a dedicated unprivileged service
 user, especially when the listener is reachable beyond localhost.
 
 The Linux CLI is named `orca-ide`, not `orca`, so it never shadows the GNOME
-Orca screen reader at `/usr/bin/orca`. The `.deb` and `.rpm` packages put
+Keel screen reader at `/usr/bin/orca`. The `.deb` and `.rpm` packages put
 `orca-ide` on `PATH` themselves at install time; with the AppImage it arrives
 as `~/.local/bin/orca-ide` when the CLI is registered.
 
@@ -404,7 +408,7 @@ typed as `orca`. It writes it while starting, so it is never the command that
 starts the server — the first launch is `orca-ide serve`, or the AppImage
 invoked directly as above. The write is best-effort: it is gated on a packaged
 build, it is skipped when no bundled launcher resolves, and it is skipped when
-a file Orca does not own already holds that name (ownership is a marker on the
+a file Keel does not own already holds that name (ownership is a marker on the
 second line of the file). A host that really does run the screen reader keeps
 its own `orca`.
 
@@ -420,7 +424,7 @@ its own `orca`.
 - An omitted advertised port uses the actual bound port, including a fallback
   port selected after a collision. An explicit proxy port is preserved. A port
   mismatch therefore means the supplied external routing is wrong, not that
-  Orca changes it.
+  Keel changes it.
 - Reverse proxies must support WebSocket upgrade and route the advertised path.
   Use `wss://` or `https://` when TLS terminates at the proxy; do not advertise
   `ws://` through an HTTPS-only endpoint.
@@ -436,13 +440,13 @@ its own `orca`.
   did not reach serve mode; confirm the AppImage version and exact argument
   order, especially `--no-sandbox serve`.
 
-If you later install the desktop CLI from Orca settings, use that CLI for normal
+If you later install the desktop CLI from Keel settings, use that CLI for normal
 shell workflows. Keep the AppImage path in systemd so service restarts do not
 depend on an interactive shell profile.
 
 ## Upgrade
 
-`orca serve` never updates itself. In headless mode Orca wires up no auto-updater
+`orca serve` never updates itself. In headless mode Keel wires up no auto-updater
 at all — the built-in updater only runs in the desktop GUI, and no paired mobile
 or web client can trigger it remotely. Upgrading is always a deliberate step:
 replace the AppImage and restart the service.
@@ -450,12 +454,12 @@ replace the AppImage and restart the service.
 Two facts make the persisted-state transition predictable:
 
 - **State lives in the service user's home, not next to the binary.** Persisted
-  data is under `/home/orca/.config/` (Orca uses both an `orca` and an `Orca`
+  data is under `/home/orca/.config/` (Keel uses both an `orca` and an `Orca`
   directory there), fully independent of `/opt/orca/orca-linux.AppImage`.
   Replacing the binary never touches projects, worktree metadata, terminal
   history, orchestration state, or paired-device keys — so mobile and web
   clients reconnect after an upgrade without re-pairing.
-- **New builds migrate old state on load.** Orca imports older `orca-data.json`
+- **New builds migrate old state on load.** Keel imports older `orca-data.json`
   into each profile's `profile-state.db`, so a forward upgrade needs no manual
   data step. Normal writes, shutdown and profile switching save SQLite; they
   no longer refresh the legacy JSON file.
@@ -483,13 +487,13 @@ execution boundary. A separately paired runtime is outside that boundary; local
 execution and SSH hosts reached through this runtime are not. An affected or
 unknown omission, missing scope, failed request or lost connection is
 `unverifiable`, so defer the restart. Do not allow new work between that census
-and the stop; Orca does not yet provide an atomic census-and-stop fence.
+and the stop; Keel does not yet provide an atomic census-and-stop fence.
 
 Rolling back is the case that needs care — see [Roll back](#roll-back).
 
 ### Record the version you deploy
 
-The bundled CLI launcher prints the Orca build with `orca-ide --version`. For an
+The bundled CLI launcher prints the Keel build with `orca-ide --version`. For an
 extracted deployment, that launcher is
 `squashfs-root/resources/bin/orca-ide`; deb/rpm installs and CLI registration put
 it on `PATH`. Do not use `orca-linux.AppImage --version` for this audit because
@@ -520,9 +524,9 @@ sudo du -sh /home/orca/.config
 df -h /opt/orca /home/orca
 ```
 
-`/opt/orca` needs room for the compressed Orca profile archive, the staged
+`/opt/orca` needs room for the compressed Keel profile archive, the staged
 build, and the rollback binary. A rollback extracts the old profile and preserves
-the post-upgrade Orca profile directories, so `/home` needs room for both copies.
+the post-upgrade Keel profile directories, so `/home` needs room for both copies.
 
 Run the following block as one Bash script so its fail-fast and recovery traps
 remain active for the whole operation:
@@ -662,7 +666,7 @@ ORCA_SERVICE_STOPPED=0
 trap - EXIT
 ```
 
-The profile archive created in step 3 captures both Orca profile directory names
+The profile archive created in step 3 captures both Keel profile directory names
 when present without rewinding unrelated tools under `/home/orca/.config`. The
 `.ready` suffix is published only after the prior binary, version record, and
 profile archive are complete. If you run the managed Xvfb unit, only
@@ -711,7 +715,7 @@ profile the older build may open, then install the older binary manually.
 Without `--profile-id`, the command prepares only the active profile. This
 explicit handoff archives the SQLite authority and publishes the current JSON;
 ordinary exports write revisioned `.sqlite-export.N.json` files and do not
-prepare a downgrade. Orca's updater refuses JSON-only targets automatically.
+prepare a downgrade. Keel's updater refuses JSON-only targets automatically.
 
 ```bash
 set -euo pipefail
@@ -918,8 +922,8 @@ is resolved.
 
 ## Installing Agent Skills Without A Desktop
 
-Orca's agent skills (CLI usage, orchestration, computer use, etc.) are normally
-installed from Orca Settings, which pre-fills an `npx skills add ... --global`
+Keel's agent skills (CLI usage, orchestration, computer use, etc.) are normally
+installed from Keel Settings, which pre-fills an `npx skills add ... --global`
 command in a terminal for you to run. A headless host has no Settings UI, so
 use `orca skills install` instead:
 
@@ -934,7 +938,7 @@ orca skills install --all --dry-run                       # print the npx comman
 This resolves the same `npx skills add <repo> --skill <name> ...` command
 Settings would show you (adding `--global` unless `--local` is passed), then
 runs it and forwards its output and exit code. It requires `node`/`npx` on the
-host; it does not need a running Orca runtime.
+host; it does not need a running Keel runtime.
 
 Unlike the command Settings shows, the spawned one adds `npx --yes` and `-y`.
 Without them the `skills` CLI opens an interactive agent picker and blocks
@@ -943,7 +947,7 @@ forever on any allocated TTY — which includes a normal `ssh` session. Use
 
 Settings keeps that picker deliberately, because choosing which agents get a
 skill is a real decision. A headless run cannot answer it, so instead of dropping
-the choice Orca makes it explicitly: it passes an `--agent` list built from the
+the choice Keel makes it explicitly: it passes an `--agent` list built from the
 coding agents it detects on the host, plus the shared `.agents/skills` directory
 it reads itself. Left to decide on its own with no agent detected, the `skills`
 CLI installs into all ~75 agents it knows and leaves a config directory for each.
@@ -954,7 +958,7 @@ orca skills install --skill orca-cli --agent claude-code,codex
 orca skills install --skill orca-cli --agent universal
 ```
 
-If Orca detects no agent at all, `orca skills install` stops and asks for
+If Keel detects no agent at all, `orca skills install` stops and asks for
 `--agent` rather than guessing.
 
 To refresh already-installed skills, `orca skills update` mirrors the same
@@ -975,8 +979,8 @@ wrote anything; read its output to confirm what changed.
 `--json` covers the skill listing and `--dry-run`. A real run streams the
 `skills` CLI's own non-JSON output and rejects `--json`.
 
-Both commands install onto the machine that runs them. In an Orca SSH workspace
-or the WSL bridge the `orca` shim forwards commands to the Orca host, so they
+Both commands install onto the machine that runs them. In a Keel SSH workspace
+or the WSL bridge the `orca` shim forwards commands to the Keel host, so they
 refuse to run there and print the command to run on the machine you want.
 
 ## Troubleshooting
@@ -993,7 +997,7 @@ refuse to run there and print the command to run on the machine you want.
   `/opt/orca/squashfs-root` if you extracted the AppImage.
 - Clients cannot connect: make sure `--pairing-address` is an address reachable
   from the client, and make sure firewalls allow the selected `--port`.
-- Journal shows `Another Orca instance is already running for this userData
+- Journal shows `Another Keel instance is already running for this userData
 profile` and the unit exits `3`: another process already owns the profile, so
   `RestartPreventExitStatus=3` leaves the unit `failed` on purpose. Find the
   owner with `systemctl status orca-serve` and `pgrep -af orca`. Stop it (or

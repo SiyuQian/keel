@@ -11,11 +11,10 @@
 <!-- What problem does this solve, and why is this approach better than the alternatives you considered? -->
 
 ## Linked Issue
-_If you do not have one and are an outside contributors, your PR **wiil** be ignored. Refs is not sufficient. Link an actual issue_
-<!-- Link the issue this PR addresses, there should ALWAYS be one (for outside contributors) -->
-<!-- SPECIAL CASE: If you are a maintainer (member of stablyai org) AVOID opening needless issues. Only attach pre-existing ones -->
 
-Fixes #
+<!-- Link an existing Keel issue when applicable; do not create an issue solely for this template. -->
+
+<!-- Fixes #<issue-number> -->
 
 ## Visual Proof
 
@@ -32,7 +31,6 @@ Fixes #
 
 ## AI Disclosure
 
-<!-- DO NOT FILL IN IF YOU ARE STABLYAI TEAM MEMBER (INTERNAL CONTRIBUTOR), IGNORE SECTION: -->
 <!-- Which AI model if anyone was used, please state the details -->
 
 ## Review
@@ -43,7 +41,7 @@ Fixes #
 
 ## Notes
 
-Ensure no issues in: Security, Cross-platoform support (Linux, Windows, Mac), Remote SSH, Mobile, general backwards compatibility, performance
+Ensure no issues in: Security, Cross-platform support (Linux, Windows, Mac), Remote SSH, Mobile, general backwards compatibility, performance
 
 ## Checklist
 

@@ -123,7 +123,7 @@ empty, current index. A registered service may report disabled or not-ready.
   `--environment` / `--pairing-code` selects and no other. It reuses
   `createSessionSearchClient`, so an old host's refusal reaches the caller as
   `unavailable/no-service` rather than an error, and needs no new capability.
-  In an Orca SSH terminal, the forwarded CLI defaults to the controlling Orca
+  In a Keel SSH terminal, the forwarded CLI defaults to the controlling Keel
   runtime's index. `--path` filters that index; it does not select the SSH host.
   `--environment` / `--pairing-code` can explicitly select a paired runtime.
 - Desktop preload optionally accepts an execution host scope as a separate

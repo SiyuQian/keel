@@ -18,7 +18,7 @@ have landed; its proposed PR 2/3 sequence is superseded by that boundary:
 
 ## The problem this solves
 
-Orca shows "what is this agent doing" in four places: the desktop sidebar, the
+Keel shows "what is this agent doing" in four places: the desktop sidebar, the
 `orca worktree ps` command, the mobile app, and the agent dashboard. Before
 #19217 those readers did not even share their inputs. After #19217 they share
 the structured-session mapping and nothing else.
@@ -217,7 +217,7 @@ stored copy. A Claude row whose `mainAgent` is `done` while a child agent still
 works (including a child's permission wait) refuses OSC, which carries no child
 identity; the children's own lifecycle hooks settle it. `outcome` is the recorded verdict on
 the main agent's most recent finished turn, present only while `mainAgent.state` is
-`done`. It is reported by the provider, or is a `cancellation` Orca inferred
+`done`. It is reported by the provider, or is a `cancellation` Keel inferred
 from the user's own interrupt keystroke, or a `superseded` the host recorded when
 a newer request replaced a structured Claude turn before it ended (it names no
 sender, and sets no legacy flag), or, on a structured row whose turn the
@@ -226,7 +226,7 @@ provider gave no verdict, is what the host observed of its end: `interruption`
 never success). The journal's turn outcome, by contrast, stores only recorded verdicts: the provider's, a `cancellation`, or the host's `superseded`; `interruption` and `unconfirmed` are derived from the turn's lifecycle state and never stored. A plain end of turn carries none, because absent
 means unknown and a provider that omits its interrupt flag must not turn a
 cancel into a success.
-In the Claude hook lane the cancellation comes primarily from Orca's own
+In the Claude hook lane the cancellation comes primarily from Keel's own
 inferred interrupt (`markClaudeLeadTurnInterrupted`), because current Claude
 sends no hook at all on a cancel and no `is_interrupt` on Stop; that flag on a
 turn boundary remains a secondary source for builds that send it, and
@@ -321,9 +321,9 @@ running. That work leaves the row only when its own inventory omits it or the
 session ends, so a cancelled turn with a still-running shell reads
 `monitoring` in every lane, and the parity table in
 `src/shared/main-agent-status-parity.test.ts` drives that story through all of
-them. The same rule governs the cancel Orca infers from Ctrl+C: for any row
+them. The same rule governs the cancel Keel infers from Ctrl+C: for any row
 that publishes `mainAgent`, the inference is admitted only when
-`mainAgent.state` is `working`, so Orca does not treat a Ctrl+C at the idle
+`mainAgent.state` is `working`, so Keel does not treat a Ctrl+C at the idle
 prompt of a row held open by child work as a turn cancel (Codex also keeps the
 child-evidence guard, and a row without `mainAgent` keeps only that guard).
 The keypress itself is not inert, though: measured live, Claude 2.1.280 stops
@@ -472,7 +472,7 @@ headless `orca serve` never saw it (#16095). Now an agent whose rule file says
   leave the decision to the screen and text rules, which is also how startup
   readiness works before an agent's first hook. The input is the PTY run's
   `lastInputAt` (`terminal-run-facts.ts`), which both write funnels record, so
-  a key the user typed counts like a prompt Orca sent: the next turn's first
+  a key the user typed counts like a prompt Keel sent: the next turn's first
   hook may still be in flight, and an agent restarted in the same shell has
   not posted one. A shell command marker is no process boundary: Pi paints
   OSC 133 zones itself;

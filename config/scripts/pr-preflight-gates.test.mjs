@@ -209,6 +209,7 @@ it('pins every foreground and background step to its selected phase', () => {
     ['Check feature wall asset budget', staticPhase],
     ['Verify macOS entitlements', staticPhase],
     ['Cache TypeScript incremental state', typePhase],
+    ['Add typecheck memory headroom', `github.event.repository.private && ${typePhase}`],
     ['pnpm run typecheck', typePhase],
     ['actions/upload-artifact@v7', typePhase]
   ])

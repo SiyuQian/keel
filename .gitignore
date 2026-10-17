@@ -112,6 +112,27 @@ docs/**
 !docs/bug-reproductions/
 !docs/bug-reproductions/**
 !docs/STYLEGUIDE.md
+# Durable Keel documentation and agent map.
+!docs/README.md
+!docs/UPSTREAM.md
+!docs/development-rules.md
+!docs/PLANS.md
+!docs/QUALITY_SCORE.md
+!docs/SECURITY.md
+!docs/FRONTEND.md
+!docs/DESIGN.md
+!docs/RELIABILITY.md
+!docs/PRODUCT_SENSE.md
+!docs/design-docs/
+!docs/design-docs/*.md
+!docs/exec-plans/
+!docs/exec-plans/tech-debt-tracker.md
+!docs/exec-plans/active/
+!docs/exec-plans/active/.gitkeep
+!docs/exec-plans/active/*.md
+!docs/exec-plans/completed/
+!docs/exec-plans/completed/.gitkeep
+!docs/exec-plans/completed/*.md
 !docs/audits/
 !docs/audits/crashpad-read-limit/
 !docs/audits/crashpad-read-limit/source-hashes.json

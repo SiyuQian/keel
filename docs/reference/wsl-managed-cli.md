@@ -1,4 +1,4 @@
-# CLI access in Orca-managed WSL shells
+# CLI access in Keel-managed WSL shells
 
 A WSL terminal on a Windows host gets this app's CLI (`orca-ide` packaged,
 `orca-dev` in development) on its PATH with nothing installed in the guest:
@@ -14,7 +14,7 @@ WSL shells still need Settings → General registration.
 2. **Crossing.** `addOrcaWslInteropEnv` adds `ORCA_WSL_CLI_DIR/p`, so both the
    daemon and in-process spawn paths translate it with the distro's own mounts.
 3. **Guest.** `WSL_MANAGED_CLI_PATH_RESTORE` runs after user startup files in the
-   bash rcfile and the local zsh first-prompt hook, which run once per Orca shell.
+   bash rcfile and the local zsh first-prompt hook, which run once per Keel shell.
    It leads PATH with the directory when `$ORCA_WSL_CLI_DIR/$ORCA_CLI_COMMAND` is
    executable, and otherwise prints one warning. Other login shells get no CLI;
    nothing blocks a shell.

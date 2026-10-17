@@ -1,5 +1,10 @@
 # Orca mobile push gateway
 
+> Upstream reference only. Keel removed its `cloud-*.yml` workflows and does not
+> operate these services. Commands and identities below are inherited infrastructure
+> details, not a Keel deployment guide. See [Keel cloud scope](../README.md#keel-scope-and-removed-workflows).
+
+
 `orca-cloud-push` is a public Cloud Run service in `onorca-cloud` that turns a desktop
 notification into an APNs or FCM push for a paired phone. The desktop registers each phone's
 native token with it and calls `POST /v1/send` after the socket fan-out it already does; the

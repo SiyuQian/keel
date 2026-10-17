@@ -497,17 +497,13 @@ describe('PR workflow parallelism', () => {
     expect(steps[cacheIndex].with['restore-keys']).not.toContain('tsbuildinfo-${{ runner.os }}-\n')
   })
 
-  it('checks out full history without historical blobs', () => {
-    const fullHistoryCheckouts = Object.values(workflow.jobs)
-      .flatMap((job) => job.steps ?? [])
-      .filter(
-        (step) => step.uses?.startsWith('actions/checkout@') && step.with?.['fetch-depth'] === 0
-      )
-
-    expect(fullHistoryCheckouts.length).toBeGreaterThan(0)
-    for (const checkout of fullHistoryCheckouts) {
-      expect(checkout.with.filter).toBe('blob:none')
-    }
+  it('checks out released source before dropping compatibility checkout credentials', () => {
+    const compatibilityCheckout = workflow.jobs['cross-version-wire'].steps.find((step) =>
+      step.uses?.startsWith('actions/checkout@')
+    )
+    expect(compatibilityCheckout.with['fetch-depth']).toBe(0)
+    expect(compatibilityCheckout.with.filter).toBeUndefined()
+    expect(compatibilityCheckout.with['persist-credentials']).toBe(false)
   })
 
   it('keeps advisory unit-selection evidence off the gate', () => {

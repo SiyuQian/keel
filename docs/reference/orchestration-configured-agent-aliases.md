@@ -15,7 +15,7 @@ Aliases require a single executable token. Commands containing interpreter argum
 environment assignments, or shell wrappers are not aliases. Multiple built-in agents
 configured with the same executable name are ambiguous and require the canonical agent
 ID. Disabled launchers remain disabled. An unconfigured name is refused even if it is
-on PATH; Orca cannot infer a compatible launch interface from a process name.
+on PATH; Keel cannot infer a compatible launch interface from a process name.
 
 The same rule applies to folder workspaces and git worktrees. For a remote worker,
 configure the command on its execution host. Older hosts may refuse aliases they do not

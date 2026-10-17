@@ -9,7 +9,7 @@ but React still receives its once-per-second lap notifications.
 We put a day's worth of laps into one animation. The wheel moves at the same
 speed, while sending one lap notification a day. Drawing visible wheels still
 costs something. This removes recurring bookkeeping from the input thread; it
-does not make rendering or the rest of Orca free.
+does not make rendering or the rest of Keel free.
 
 ## How this builds on earlier changes
 
@@ -45,7 +45,7 @@ These are event dispatches, not component rerenders or 400 separate OS wakeups.
 
 ## Full-app benchmark
 
-The opt-in Playwright benchmark launches a fresh, hidden Orca app for each
+The opt-in Playwright benchmark launches a fresh, hidden Keel app for each
 scenario. It creates real Git workspaces and seeds working statuses through the
 existing renderer fixture, including in-process subagent data. It renders the
 normal sidebar, virtualizer, lineage, agent rows, tabs, and terminal.
@@ -98,7 +98,7 @@ the two runs, not confidence intervals. No keys or echoes were missing.
 The consistent gain is less main-thread work: about 35%, 43%, 42%, and 50%
 less in these four scenarios. Native 2.2-second traces counted 6, 16, 324, and
 2,802 iteration events before, and zero in each new variant, without adding an
-iteration listener. That avoided work also exists in Orca itself, independently
+iteration listener. That avoided work also exists in Keel itself, independently
 of the isolated fixture and CPU noise.
 
 Total CPU was roughly unchanged in the one-worktree cases. In this run it fell
@@ -185,7 +185,7 @@ An early isolated test suggested a 31% process-CPU reduction that a longer audit
 did not reproduce. The longer isolated audit measured original 104.04 versus
 long-cycle 92.32 CPU ms/s, and main-thread 10.08 versus 0.24 ms/s. A fixture with
 every ring far offscreen and containment enabled could also approach idle; that
-is not representative of Orca with visible animations. Neither result justifies
+is not representative of Keel with visible animations. Neither result justifies
 claiming "free spinners" or a universal CPU percentage. Virtualized, unmounted
 rows already cost nothing, and this patch does not add offscreen culling.
 

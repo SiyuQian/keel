@@ -1,15 +1,15 @@
 # Relay regional placement
 
-Orca selects a Relay region in the Electron main process before requesting a new assignment. The
+Keel selects a Relay region in the Electron main process before requesting a new assignment. The
 director publishes an allowlisted region catalog containing only HTTPS cell subdomains of that
-director. Orca discards one warm-up `/health` request per probe origin — a cold request pays TCP and
+director. Keel discards one warm-up `/health` request per probe origin — a cold request pays TCP and
 TLS setup that can exceed the round trip it measures — then takes three bounded samples and compares
 regions by their minimum. A wide spread still rejects a region, but only a genuinely flapping one.
 The stable choice is cached for 24 hours, and a cached region changes only when the alternative is
 materially faster.
 
 A region wins only against a measured competitor. If any region in the catalog is rejected or cannot
-be measured, Orca sends no hint rather than selecting the sole survivor. Sending no hint is not
+be measured, Keel sends no hint rather than selecting the sole survivor. Sending no hint is not
 neutral placement: the director assigns `preferredRegion ?? RELAY_DEFAULT_REGION`, and the default
 is `us-central1`. So an `asia-east2` user whose `us-central1` probe fails or flaps once is placed in
 `us-central1` for that refresh. That trade is accepted because the relay database is
@@ -17,7 +17,7 @@ is `us-central1`. So an `asia-east2` user whose `us-central1` probe fails or fla
 chosen region gets, so the next hour re-measures. An origin that fails its warm-up probe is dropped
 before the sampling rounds, so an unreachable region costs one probe timeout rather than four.
 
-After a control socket registers, Orca probes the cell it actually landed on, once per cell URL per
+After a control socket registers, Keel probes the cell it actually landed on, once per cell URL per
 process. The cache is deleted only when it names a region other than the best measured one and the
 assigned cell is more than three times slower than that region — a far cell under a cache that still
 names the best region means the director declined the hint, and re-measuring would return the same
@@ -35,5 +35,5 @@ exact cell URL in the desktop pairing payload, so its location is not measured i
 no mobile protocol update is required.
 
 For deterministic local diagnostics, set `ORCA_RELAY_REGION_OVERRIDE` to `us-central1` or
-`asia-east2` before launching Orca. The override is not an end-user setting and is not written to
+`asia-east2` before launching Keel. The override is not an end-user setting and is not written to
 the preference cache.

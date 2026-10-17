@@ -1,6 +1,6 @@
 # Monaco filename associations
 
-Orca imports Monaco's full `editor.main.js` entry point, which registers the built-in
+Keel imports Monaco's full `editor.main.js` entry point, which registers the built-in
 languages and loads their grammars on demand. Filename detection must not load the
 editor itself: it also runs during session restoration and before the editor mounts.
 
@@ -21,7 +21,7 @@ Its test compares the checked-in metadata to the installed package and curated a
 list was verified against a clone of `microsoft/monaco-editor`, tag `v0.55.1`, commit
 `516f350bdaf7a82f6731bd128a9ec86a6e5fa47d` (`src/basic-languages` and `src/language`).
 
-Existing Orca filename and extension choices take precedence. This preserves custom
+Existing Keel filename and extension choices take precedence. This preserves custom
 Vue, Svelte, Astro, Nim, Typst, JSONL, notebook and preview handling, as well as the
 Markdown mapping for MDX. The fallback matches exact filenames before the longest
 extension, case-insensitively, and resolves duplicate associations in upstream

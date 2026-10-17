@@ -1,10 +1,10 @@
 # SSH Execution Boundary
 
-How Orca splits work between your machine and an SSH host, what survives a disconnect, and how to keep `unverifiable` distinct from `exited`. Nothing under `docs/` stated this before; agents and humans were inferring it from error strings and getting it wrong.
+How Keel splits work between your machine and an SSH host, what survives a disconnect, and how to keep `unverifiable` distinct from `exited`. Nothing under `docs/` stated this before; agents and humans were inferring it from error strings and getting it wrong.
 
 ## The rule
 
-**The execution host owns everything that touches execution** — tools, credentials, identity, environment, processes, and artifacts. The client owns the UI, transport, and Orca control-plane state, but is not authoritative for execution state.
+**The execution host owns everything that touches execution** — tools, credentials, identity, environment, processes, and artifacts. The client owns the UI, transport, and Keel control-plane state, but is not authoritative for execution state.
 
 Two consequences, both non-negotiable:
 
@@ -31,7 +31,7 @@ Rule 1 is stated at `src/main/source-control/repo-default-branch.ts:76-78`, `src
 
 ## Survival: what a disconnect does _not_ do
 
-By default, remote work survives your machine going away. The relay is a detached daemon (`nohup … </dev/null &`), its handler in `src/relay/relay.ts` ignores `SIGHUP`, the PTY is its child rather than the ssh channel's, and quitting Orca is a **detach, not a dispose** (`src/main/ssh/ssh-relay-session.ts:901-915`). Sleep additionally pushes `graceTimeSeconds: 0` to un-bound any running grace window.
+By default, remote work survives your machine going away. The relay is a detached daemon (`nohup … </dev/null &`), its handler in `src/relay/relay.ts` ignores `SIGHUP`, the PTY is its child rather than the ssh channel's, and quitting Keel is a **detach, not a dispose** (`src/main/ssh/ssh-relay-session.ts:901-915`). Sleep additionally pushes `graceTimeSeconds: 0` to un-bound any running grace window.
 
 Two ways remote work _can_ actually stop:
 
@@ -40,7 +40,7 @@ Two ways remote work _can_ actually stop:
 
 Reconnect re-attaches to the same live PTYs and replays a bounded buffer (`REPLAY_BUFFER_MAX`, a 102,400-code-unit tail). Output beyond that while you were away is lost to the client even though the process was never interrupted: **the transcript is truncated; the work stays `live`.**
 
-## Updating Orca strands relay-backed terminals
+## Updating Keel strands relay-backed terminals
 
 There is a third outcome that is neither of the two above, and the vocabulary matters: the work does not stop, it becomes permanently unreachable.
 
@@ -126,4 +126,4 @@ A listing is only evidence about the hosts it actually covered. When a result do
 
 An SSH host and a paired runtime (`orca environment`) imply opposite boundaries: the first is a dumb execution host driven by your client, the second is a peer that owns its own control plane. Registering the same machine both ways splits its worktrees across two identities, makes `terminal list` return different sets depending on `--environment`, and reliably confuses both humans and agents. Pick one per machine.
 
-For work that must continue while you are offline, use the peer/headless-runtime model on the remote host instead of the direct-SSH model. Its control plane is host-local, and its daemon-backed PTYs can stay `live` across a PID-scoped runtime restart so the runtime can reattach. A service manager that reaps the runtime's cgroup, or an explicit daemon shutdown, makes them `exited`; see [Running orcad](./orcad-operations.md#process-scoped-and-cgroup-wide-stops). Do not register the same machine through both models. A detached agent process outside Orca can also survive a control-plane outage, but it has no stdin, so its instructions cannot be amended mid-run.
+For work that must continue while you are offline, use the peer/headless-runtime model on the remote host instead of the direct-SSH model. Its control plane is host-local, and its daemon-backed PTYs can stay `live` across a PID-scoped runtime restart so the runtime can reattach. A service manager that reaps the runtime's cgroup, or an explicit daemon shutdown, makes them `exited`; see [Running orcad](./orcad-operations.md#process-scoped-and-cgroup-wide-stops). Do not register the same machine through both models. A detached agent process outside Keel can also survive a control-plane outage, but it has no stdin, so its instructions cannot be amended mid-run.

@@ -1,12 +1,16 @@
-# Orca Relay
+# Keel Relay
 
-The relay that connects the Orca mobile app to a desktop host. Phones and
+This source is inherited from Orca. Runtime identifiers and upstream service
+configuration remain unchanged; see [project provenance](../docs/UPSTREAM.md).
+
+
+The relay that connects the Keel mobile app to a desktop host. Phones and
 desktops never talk to each other directly: each opens an outbound WebSocket
 to a relay cell, the relay pairs the two sessions, and it splices frames
 between them. A director assigns hosts to cells and coordinates migrations;
 cells carry the user connections.
 
-This directory is an independent pnpm workspace inside the Orca monorepo. Run
+This directory is an independent pnpm workspace inside the Keel monorepo. Run
 its commands from `cloud/`, not the repository root. The source is covered by
 the repository's root [MIT license](../LICENSE).
 
@@ -32,7 +36,7 @@ the repository's root [MIT license](../LICENSE).
 ## Mobile push gateway
 
 `apps/push` is a separate Cloud Run service from the relay. Phones never hold an
-Orca credential for it: the desktop host authenticates with the same X25519
+Keel credential for it: the desktop host authenticates with the same X25519
 key it uses for the relay, answering an encrypted challenge to mint a 24 hour
 session, then registers each paired phone's native push token and asks the
 gateway to push. The gateway queues each event as its own notification,
@@ -75,25 +79,29 @@ bodies, and full host fingerprints never reach a log line.
   reference, the workflow variable reference in `docs/relay-workflows.md`, and
   the push gateway runbook in `docs/push-gateway.md`.
 
-## Workflows
+## Keel scope and removed workflows
 
-The 25 `.github/workflows/cloud-*.yml` workflows are the deploy and operate
-surface: publish and deploy the director, roll GCE cell capacity, operate Asia
-admission and regional rehoming, prove staging capacity, monitor production,
-power staging up and down, and deploy the mobile push gateway.
-`.github/actions/cloud-sql-rollout-lease` is the compare-and-swap lease that
-serializes rollouts against the shared Cloud SQL instance. Push reuses that
-action with its own lease object and deployment concurrency group.
+Keel currently targets the desktop ADE and does not operate the inherited cloud
+services. `cloud-verify.yml` and the 25 other `cloud-*.yml` deployment, monitoring,
+and operations workflows have been removed from `.github/workflows/`.
+Cloud Verify is also disabled in this repository's GitHub settings. There is no
+Keel cloud CI, Terraform validation, deployment, or operations workflow here.
 
-Every one of them is inert. Each top-level job is gated on
-`vars.ORCA_CLOUD_OPERATIONS_ENABLED == 'true'`, a repository variable that is
-unset here, so the two scheduled triggers and every manual dispatch skip
-without running a step. Only the repository owner, holding the GCP identities
-these workflows authenticate as, can turn them on.
+The source, shared contracts, fixtures, Terraform, and runbooks remain for
+upstream compatibility and possible future work. Desktop tests still consume
+cloud fixtures, such as `packages/push-contract/src/push-host-proof-vector.json`;
+removing workflows does not authorize deleting this tree or changing its wire
+contracts. `.github/actions/cloud-sql-rollout-lease` is retained as inactive
+supporting source, not an enabled deployment.
 
-`Cloud Verify` is not gated. It builds, typechecks, lints, tests, secret-scans,
-and validates the relay Terraform on every change under `cloud/`, and it runs
-on fork pull requests, so it configures no backend and holds no credential.
+The operational guides below describe upstream infrastructure. They do not
+establish Keel-owned services, credentials, or a supported deployment process.
+Cloud tests that read deleted workflow files cannot run unchanged; restoring
+cloud CI requires deliberate review of those workflow contracts and identities.
+Do not skip or rewrite those assertions merely to claim cloud readiness.
+
+Follow the [upstream synchronization checklist](../docs/UPSTREAM.md#upstream-synchronization)
+when merging Orca changes. Do not restore cloud workflows as part of a routine sync.
 
 ## What is not here
 
@@ -108,10 +116,12 @@ carrying a dangling reference.
 cd cloud
 pnpm install
 pnpm build
-pnpm test
 ```
 
-`pnpm test` runs the SQLite-backed suites. Tests that need PostgreSQL run only
+The inherited `pnpm test` command includes workflow-contract tests that refer to
+the removed workflows and is not a supported whole-workspace gate in Keel.
+Service-specific suites may still be run for explicit cloud work; their presence
+does not mean Keel operates these services. The service tests use SQLite by default. Tests that need PostgreSQL run only
 when `ORCA_RELAY_TEST_POSTGRES_URL` points at a disposable PostgreSQL 16 or 17
 database, for example:
 

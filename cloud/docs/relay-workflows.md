@@ -1,5 +1,10 @@
 # Relay GitHub Actions Configuration
 
+> Upstream reference only. Keel removed its `cloud-*.yml` workflows and does not
+> operate these services. Commands and identities below are inherited infrastructure
+> details, not a Keel deployment guide. See [Keel cloud scope](../README.md#keel-scope-and-removed-workflows).
+
+
 The `cloud-*` workflows in `.github/workflows/` are the Relay deploy and
 operate surface. Every one of them is gated on the repository variable
 `ORCA_CLOUD_OPERATIONS_ENABLED == 'true'` and does nothing until the repository

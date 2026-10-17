@@ -1,13 +1,13 @@
 # Fresh OMP launches
 
-Orca's new-session and draft launch plans apply a one-time `--config` overlay
+Keel's new-session and draft launch plans apply a one-time `--config` overlay
 containing `autoResume: false`. OMP's configured session directory, settings,
 authentication and extensions remain in their usual locations. Saved launch
 configuration omits the overlay so explicit resume keeps its normal semantics.
 Custom commands with session selectors, unknown flags, positional arguments or
 shell compounds are left unchanged.
 
-The execution host creates the overlay. Local and WSL terminals use Orca userData
+The execution host creates the overlay. Local and WSL terminals use Keel userData
 (with WSLENV path translation); SSH relays use their own managed directory. Config
 creation is independent of status-hook preferences and does not require plugin
 source installation. An unavailable file produces a terminal diagnostic and skips

@@ -38,7 +38,6 @@
       "config/scripts/ci-unit-timing-reporter.test.mjs": 62,
       "config/scripts/cli-main-module-bundle-parity.test.ts": 594,
       "config/scripts/client-hosted-browser-package-coverage.test.mjs": 124,
-      "config/scripts/cloud-security-history-workflow.test.mjs": 344,
       "config/scripts/codex-index-heal-contract-workflow.test.mjs": 145,
       "config/scripts/codex-primary-home-tripwire.test.ts": 344,
       "config/scripts/computer-e2e-workflow.test.mjs": 159,

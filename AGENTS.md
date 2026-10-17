@@ -1,135 +1,71 @@
-# Design System
+# Keel agent guide
 
-All UI work — layout, color, typography, spacing, component selection, UX behavior — must follow [`docs/STYLEGUIDE.md`](./docs/STYLEGUIDE.md). Most of it is linted: `pnpm run check:code-quality:changed` fails on new restyles of a `components/ui/` primitive, raw palette colors, and computed `className` strings; `pnpm lint` fails on any class Tailwind cannot generate. See the Enforcement section of the style guide before suppressing either. Use the tokens defined in `src/renderer/src/assets/main.css` (the canonical source) and the shadcn primitives in `src/renderer/src/components/ui/`. Don't invent new color values, font sizes, or shadow tiers when a documented one already covers the role. When STYLEGUIDE.md is silent, follow the resolution order in its final section.
+Keel is an independent ADE based on Orca. Read [provenance](docs/UPSTREAM.md)
+before renaming identifiers; commands, package names, protocols, and paths still use Orca spelling.
 
-## Electron UI Validation
+## Repository map
 
-Always run tests and agent-launched apps in the background with `ORCA_BACKGROUND_LAUNCH=1`.
-Never steal monitor focus or reveal test windows: no `show()`, `showInactive()`, `bringToFront()`,
-`app.focus()`, or OS activation. Use CDP screenshots of hidden renderers. Keep native-focus and
-visible-window tests paused on the user's desktop; run them on an isolated display or CI.
-Rebuild modified launch-policy code before running an app; stale build wrappers are not safe.
+- `src/main/`: Electron host, runtime, integrations, and execution authority.
+- `src/preload/`: typed desktop bridges; `src/renderer/`: React UI and presentation state.
+- `src/cli/` and `src/relay/`: CLI and SSH-host execution paths; `src/shared/`: contracts and process primitives.
+- `mobile/`, `cloud/`, `docs/site/`: separate installs; see their READMEs.
+- [Architecture](ARCHITECTURE.md) and [documentation index](docs/README.md) explain the boundaries.
 
-Use the `$electron` skill and Playwright CDP for rendered Orca UI checks. Do not use computer-use for Orca UI validation.
+## Commands (repository root)
 
-# Style
+- Setup: `pnpm install`; use `pnpm install:release` before cross-architecture packaging.
+- Develop: `ORCA_BACKGROUND_LAUNCH=1 pnpm dev`; build: `pnpm build`.
+- Typecheck: `pnpm tc` (or `tc:node`, `tc:cli`, `tc:web`).
+- Tests: `ORCA_BACKGROUND_LAUNCH=1 pnpm test [path/to/file.test.ts]`.
+- Lint changed code: `pnpm run check:code-quality:changed`; full lint: `pnpm lint`; format: `pnpm format`.
+- Renderer design report: `pnpm run lint:design-system` (report, not a gate).
+- README links: `pnpm run check:readme-local-links` (checks tracked targets).
 
-## Reuse Before Reimplementing
+## Rules that apply to every task
 
-Before writing new logic at any scale — a function, component, IPC channel, state store, or whole subsystem/flow — check whether an existing implementation already does the job (or nearly does). Extend or generalize it instead of building a parallel version; only write from scratch when nothing fits. Keep the check proportionate: a quick search for trivial code, a real one before building anything substantial.
+The complete rules, rationale, exceptions, and platform recipes are in
+[development rules](docs/development-rules.md); read the relevant section before editing.
+Checks below are review unless a command is named.
 
-## Concise/Brief Non-obvious Comments ONLY
+- All UI work must follow [STYLEGUIDE.md](docs/STYLEGUIDE.md), including enforcement and fallback order; use canonical tokens and shadcn primitives, not invented values (`check:code-quality:changed`, `pnpm lint`).
+- Always set `ORCA_BACKGROUND_LAUNCH=1` for tests and agent-launched apps; never reveal windows, steal focus, or use `show()`, `showInactive()`, `bringToFront()`, `app.focus()`, or OS activation.
+- Use hidden-renderer CDP screenshots; keep native-focus/visible-window tests on an isolated display or CI and rebuild changed launch-policy code before launching.
+- Use the `$electron` skill and Playwright CDP for rendered UI checks; do not use computer-use for Orca/Keel validation.
+- Search for existing implementations before writing new logic; extend or generalize before creating parallel versions.
+- Comments explain non-obvious reasons briefly, preferably one line; never narrate obvious code.
+- Never disable `max-lines` or add a per-file max-lines bump in `mobile/.oxlintrc.json`.
+- Never use vague module names such as `helpers`, `utils`, `common`, or `misc`; name concrete domain concepts.
+- Prefer `.ts` over `.d.ts`; avoid assertions except `as const`; unavoidable assertions need the line-specific `SAFETY:` explanation specified in development rules.
+- Always read and edit this worktree; never follow subagent paths into the main checkout.
+- Support macOS, Linux, and Windows behind runtime checks; never hardcode `e.metaKey`; use platform-specific shortcuts/labels and `CmdOrCtrl` menu accelerators.
+- Use path utilities; never assume slash direction. Preserve folder workspaces as well as Git worktrees.
+- Windows shells use `--shell`, not `--command`; setup runner type follows its shebang, never terminal preference; never run a bare `cmd.exe /c` from Git Bash.
+- Windows child processes use `runProcess`/`spawnProcess`, never direct `child_process`; follow the shim-resolution reference before new shim shapes.
+- Spawn bundled ripgrep through `spawnBundledRipgrep` or `resolveRelayRipgrepCommand`, never bare `rg`; do not add local Git/readdir fallbacks.
+- Enumerate Windows processes via `windows-process-table.ts`, never a new PowerShell process.
+- Read the Windows MSYS job, daemon relocation, EDR, and antivirus references before touching those paths; do not add risky interpreter flags/spawning without the EDR review.
+- WSL uses `buildWslExecArgs` with `--exec`; fence parsed stdout with `buildWslCapturedLoginShellCommand`.
+- Keep Linux native modules compatible with Ubuntu 20.04/glibc 2.31; follow native-install policy before cross-target builds.
+- All changes must consider SSH; execution belongs to its host and contact loss is never process death: only `live` / `unverifiable` / `exited`.
+- Agent status has one execution-host store, the hook server's; producers write there and readers retain presentation policy only.
+- Terminal readiness/idle rules must use captured transcripts; read the Antigravity evidence before changing its readiness logic.
+- Mixed client/server versions are normal; read wire compatibility before exchanged content changes; new stream opcodes require capability negotiation.
+- Treat Git 2.25 as baseline; check every changed option's introduction, preserve global Git flags, use host-scoped `GitCapabilityCache` with narrow errors, and test first/cached/concurrent fallbacks and host isolation.
+- Keep real-binary Git version boundaries in CI current; never do ref × tree scans or start with unqualified `--all`; bound searches and get confirmation after measuring genuinely unbounded scans.
+- Generic review behavior must support GitLab and other providers; keep provider-specific behavior behind explicit checks.
+- Batch `gh` requests and respect rate limits; commands and scripts must work across supported platforms.
+- Claude structured-session changes require the real CLI tests and login described in [verification rules](docs/development-rules.md#verifying-changes).
+- PRs must use the [template](.github/pull_request_template.md), describe user-visible before/after, mechanism, and choice of approach in plain language; no padding.
 
-- DO NOT: be verbose, explain the obvious, walk through the code ("WHY not HOW")
-- BE CONCISE. 1 LINE if possible
+- Upstream sync must preserve the [Keel scope and CI boundary](docs/UPSTREAM.md#upstream-synchronization): retain mobile/cloud source, keep removed cloud workflows absent, and review repository-local disabled workflow settings. Check: review.
 
-## Lint Rules: Do Not Disable Max Lines
+## Knowledge base
 
-NEVER add a `max-lines` disable (`eslint-disable max-lines`, `oxlint-disable max-lines`, or line-specific variants), and never add a per-file `max-lines` bump in `mobile/.oxlintrc.json`.
+- [Design decisions](docs/design-docs/index.md) and [core beliefs](docs/design-docs/core-beliefs.md).
+- [Plans](docs/PLANS.md), [tech debt](docs/exec-plans/tech-debt-tracker.md), and [quality evidence](docs/QUALITY_SCORE.md).
+- [Security](docs/SECURITY.md) and [reliability](docs/RELIABILITY.md).
+- [Frontend](docs/FRONTEND.md), [design](docs/DESIGN.md), and [product scope](docs/PRODUCT_SENSE.md).
 
-## File and Module Naming
-
-Never use vague names like `helpers`, `utils`, `common`, `misc`, or `shared-stuff` for files, folders, or modules. They carry zero info and tend to become dumping grounds. Name files after what they _actually_ contain — prefer the concrete domain concept (e.g. `tab-group-state.ts`, `terminal-orphan-cleanup.ts`) over the generic role (`tabs-helpers.ts`, `terminal-utils.ts`). If you find yourself reaching for `helpers`, the file probably has more than one responsibility and should be split, or there's a better name hiding in the code that describes what the functions operate on.
-
-## Type Declarations: Prefer `.ts` Over `.d.ts`
-
-## Type Assertions: Prefer Checked Types
-
-Avoid type assertions except `as const`. Unavoidable casts need a line-specific `SAFETY:` explanation:
-
-```ts
-// oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Explain the verified invariant here.
-```
-
-# Verifying Changes
-
-- **Typecheck**: `pnpm tc` (or `tc:node` / `tc:cli` / `tc:web`)
-- **Test**: `pnpm test [path/to/file.test.ts]`
-- **Lint**: `oxlint`, or `pnpm run check:code-quality:changed` for changed files (full `pnpm lint` is slow); format with `pnpm format`
-- **Design system**: `pnpm run lint:design-system` for the full renderer report (not a gate); the changed-lines gate above is what CI enforces
-- **Real Claude CLI**: when you change Claude structured-session code (`src/main/claude/claude-structured-*`), run `ORCA_REAL_CLAUDE_CLI_TEST=1 pnpm test src/main/claude/claude-structured-real-cli.test.ts src/main/claude/claude-structured-real-cli-fold.test.ts`; it uses your real Claude login
-
-# Writing Pull Requests
-
-Fill in [`.github/pull_request_template.md`](./.github/pull_request_template.md), written for a reviewer who has never seen this code:
-
-- No jargon — plain language, no internal shorthand.
-- The before and after as the user experiences it.
-- The mechanism you changed, not just the symptom.
-- Why this approach over the alternatives you considered.
-
-Cover all four concisely. Don't pad or walk the diff.
-
-# Considerations
-
-## Worktree Safety
-
-Always use the primary working directory (the worktree) for all file reads and edits. Never follow absolute paths from subagent results that point to the main repo.
-
-## Cross-Platform Support
-
-Orca targets macOS, Linux, and Windows. Keep all platform-dependent behavior behind runtime checks:
-
-- **Keyboard shortcuts**: Never hardcode `e.metaKey`. Use a platform check (`navigator.userAgent.includes('Mac')`) to pick `metaKey` on Mac and `ctrlKey` on Linux/Windows. Electron menu accelerators should use `CmdOrCtrl`.
-- **Shortcut labels in UI**: Display `⌘` / `⇧` on Mac and `Ctrl+` / `Shift+` on other platforms.
-- **File paths**: Use `path.join` or Electron/Node path utilities — never assume `/` or `\`.
-- **Windows terminal shells**: `--shell` picks the shell a terminal _is_; `--command` is typed into whatever shell the host spawned, so a shell choice routed through `command` silently becomes a child process. See [`docs/reference/windows-terminal-shell-selection.md`](./docs/reference/windows-terminal-shell-selection.md).
-- **Windows setup scripts**: the setup/issue-command runner is a `.cmd` batch file unless the script starts with a `#!` line — never derive that from the user's terminal-shell preference, and never launch a `.cmd` runner with a bare `cmd.exe /c` from a Git Bash pane (MSYS rewrites the `/c`). See [`docs/reference/windows-setup-shell.md`](./docs/reference/windows-setup-shell.md).
-- **Windows child processes**: start them through `runProcess`/`spawnProcess` in `src/shared/child-process/` — never `child_process` directly. It pins `windowsHide`, refuses `shell: true`, and encodes `.cmd`/`.bat` arguments so neither `CommandLineToArgvW` nor `cmd.exe` mangles them. Recognised npm/pnpm `.cmd` shims are resolved to their real target so the spawn skips `cmd.exe` entirely; see [`docs/reference/windows-cmd-shim-resolution.md`](./docs/reference/windows-cmd-shim-resolution.md) before adding a shim shape or debugging one.
-- **Ripgrep**: Orca bundles `rg` for every platform, WSL, and SSH remotes. Spawn it through `spawnBundledRipgrep` (main) or `resolveRelayRipgrepCommand` (relay), never a bare `'rg'` — Windows resolves a bare name in the spawn cwd before PATH. Don't add git/readdir fallbacks locally; the relay's chain exists only for hosts an upload never reached.
-- **Windows process enumeration**: read the table through `src/main/windows/windows-process-table.ts`, never by forking `powershell.exe`. See [`docs/reference/windows-process-enumeration.md`](./docs/reference/windows-process-enumeration.md).
-- **Windows MSYS/Git Bash panes**: their children break away from the per-PTY job unless it is created without `JOB_OBJECT_LIMIT_BREAKAWAY_OK`, and a `conpty.node` built before that fix passes every existing gate. Before changing the per-PTY job or debugging `windows-msys-job.win32.test.ts`, read [`docs/reference/windows-msys-job-breakaway.md`](./docs/reference/windows-msys-job-breakaway.md).
-- **Windows daemon-host relocation**: the terminal daemon runs from a copy of the app runtime under `%LOCALAPPDATA%`, which is what survives an auto-update. Before touching that copy, its exe name, or the NSIS uninstall macro, read [`docs/reference/windows-daemon-host-relocation.md`](./docs/reference/windows-daemon-host-relocation.md).
-- **Windows EDR signal**: don't add `-ExecutionPolicy Bypass`, `-EncodedCommand`, `cmd.exe /c` with escaped free text, per-operation interpreter spawning, or runtime `Add-Type` compilation without reading [`docs/reference/windows-edr-posture.md`](./docs/reference/windows-edr-posture.md) first — behavioural EDR scores each of those, and being signed does not clear them. For file verdicts on the bytes we ship — antivirus false positives, and the vendor programs that clear a release before users meet the detection — see [`docs/reference/antivirus-prerelease-clearance.md`](./docs/reference/antivirus-prerelease-clearance.md).
-- **WSL commands**: build argv with `buildWslExecArgs` (always `--exec` — under `--`, `wsl.exe` expands `$name` in every argument and silently rewrites the script), and fence anything whose stdout you parse with `buildWslCapturedLoginShellCommand`, because the interactive login shell prints the distro banner to stdout. See [`docs/reference/wsl-command-execution.md`](./docs/reference/wsl-command-execution.md).
-- **Linux native modules**: keep the glibc floor at Ubuntu 20.04 / glibc 2.31. A module compiled from source on a newer runner can reference symbol versions absent on the floor and crash the app on startup. See [`docs/reference/linux-glibc-compatibility.md`](./docs/reference/linux-glibc-compatibility.md); packaging fails if a bundled native binary needs newer glibc.
-
-## Native Dependency Installs
-
-Ordinary `pnpm install` covers the host OS and CPU only. Before packaging for another architecture — including `pnpm build:mac`, which builds x64 and arm64 by default — run `pnpm install:release`. electron-builder only warns on a missing `extraResources` source, so the `beforePack` guard is what turns a thin install into a build failure instead of a silently broken artifact; see [`docs/reference/pnpm-install-policy.md`](./docs/reference/pnpm-install-policy.md).
-
-## SSH Use Case
-
-All changes must consider the SSH use case. Don't assume local-only execution. Before changing anything that reports on, stops, or lists remote work, follow [`docs/reference/ssh-execution-boundary.md`](./docs/reference/ssh-execution-boundary.md): the execution host owns everything that touches execution, and loss of contact is never evidence of process death — the verdict vocabulary is `live` / `unverifiable` / `exited`, with no synonyms.
-
-## Folder Workspace Use Case
-
-All changes must consider folder workspaces as well as git worktrees. Don't assume every workspace is a git worktree.
-
-## Agent Status
-
-The execution host owns agent status in one store, the hook server's, and every reader (sidebar, `worktree ps`, mobile, dashboard) subscribes to it. Before adding a producer, a cache, or a reader-side precedence rule, read [`docs/reference/agent-status-store.md`](./docs/reference/agent-status-store.md): new producers write into that store, and readers keep only presentation policy.
-
-## Agent Terminal Screens
-
-A rule that reads what an agent CLI paints on a terminal — readiness, blocked prompts, idle — must be written against a captured transcript, not a remembered screen. Record one with [`docs/reference/agent-pty-transcript-capture.md`](./docs/reference/agent-pty-transcript-capture.md), which keeps escapes and wrapping intact and scrubs account identifiers before they reach git. Antigravity readiness has no transcript yet and five failed attempts without one; before touching it, read [`docs/reference/antigravity-readiness-evidence.md`](./docs/reference/antigravity-readiness-evidence.md).
-
-## Remote Wire Compatibility
-
-Clients and remote Orca servers update independently, so mixed versions are the normal state. Before changing anything a paired client and host exchange — RPC params, stream frames, or the content either side publishes over them — follow [`docs/reference/remote-wire-compatibility.md`](./docs/reference/remote-wire-compatibility.md). A new optional field is safe; a new stream opcode must be capability-negotiated because decoders drop unknown opcodes silently; and changing what the host publishes reaches old clients even with no wire change.
-
-## Git Binary Compatibility
-
-Orca runs the user's Git binary on native, WSL, and SSH hosts, which may all have different versions. Treat Git 2.25 as the core-workflow baseline and follow [`docs/reference/git-compatibility.md`](./docs/reference/git-compatibility.md).
-
-When adding or changing a Git command:
-
-- Check when every subcommand and option was introduced. For newer behavior, keep a baseline-compatible fallback or degrade safely.
-- Use `GitCapabilityCache` with a narrow unsupported-error predicate so recurring operations do not retry a known-invalid command. Do not rely only on `git --version`; wrappers such as `simple-git` do not remove host-version differences.
-- Scope capability state to the host that executes Git: native, WSL distro, SSH provider, or relay connection. Cover the first fallback, later cached calls, concurrent probes, and relevant host isolation in tests.
-- Keep the real-binary compatibility contract in PR CI current. When adopting a newer Git feature, add its version boundary so the preferred command and fallback both run against representative Git releases.
-- Preserve commands that begin with global Git options such as `-c` before the subcommand, including auto-maintenance suppression used by worktree-create fetches.
-
-## Git Scan Safety
-
-- Never enumerate every ref and then run `git ls-tree -r` or `git show` once per ref. That ref × tree fan-out can retain gigabytes of output before a downstream `sort -u` or search can make progress.
-- Prefer `rg` over the checked-out files for source searches. For history or refs, use a named ref, an explicit namespace/path, `--max-count`, and a bounded output; do not use an unqualified `--all` scan as a first diagnostic.
-- Keep repository-wide commands targeted to the current repository and worktree. If an unbounded scan is genuinely required, measure the ref count first, explain the cost, and get confirmation before running it.
-
-## Git Provider Compatibility
-
-Source-control and review changes must consider GitLab and other supported git providers, not only GitHub. Keep provider-specific behavior behind explicit checks, and avoid GitHub-only naming for generic review concepts.
-
-## GitHub CLI Usage
-
-Be mindful of the user's `gh` CLI API rate limit — batch requests where possible and avoid unnecessary calls. All code, commands, and scripts must be compatible with macOS, Linux, and Windows.
+Not applicable: `docs/product-specs/` (no separate Keel feature specification supplied),
+`docs/generated/` (no new generated reference requested), `docs/references/`
+(no new third-party reference material needed; existing contracts stay in `docs/reference/`).

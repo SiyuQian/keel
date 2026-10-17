@@ -25,7 +25,7 @@ Source experiments used `origin/main` at `721a2692893ab29f8daee3149965bf5e9adf99
 - A SQLite store test sustained a registered migration for a simulated hour with both controls renewed, then completed on source release.
 - Mobile harness restored credentials/assignment/subscriptions after simulated drain. Sent mutations can become delivery-unknown and are not blindly replayed. The 251ms fake-clock recovery result is not measured real-world downtime.
 
-Full evidence: [interruption findings](RELAY-INTERRUPTION-FINDINGS.md), [harness and patches](https://github.com/stablyai/orca/blob/0db9fdc486366f7451289f0c0599eed9ae1d94be/tests/tools/relay-rehome-interruption/README.md). The counterfactual patch is NOT production code: it has no negotiation, incorrectly changes normal deadline semantics, and does not validate failure/replay paths.
+Full evidence: interruption findings (`RELAY-INTERRUPTION-FINDINGS.md`, not included in this repository), [harness and patches](https://github.com/stablyai/orca/blob/0db9fdc486366f7451289f0c0599eed9ae1d94be/tests/tools/relay-rehome-interruption/README.md). The counterfactual patch is NOT production code: it has no negotiation, incorrectly changes normal deadline semantics, and does not validate failure/replay paths.
 
 ## 1. Ordered, expiring region decisions
 

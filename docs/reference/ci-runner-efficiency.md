@@ -1321,7 +1321,7 @@ To reproduce the simplest negative control outside the worktree:
    module graph correctly fails. This is an additional persistent-cache error,
    not a claim that normal in-process module reuse supports arbitrary mutation.
 
-Orca currently resolves only pinned Vitest/Vite built-in transform plugins.
+Keel currently resolves only pinned Vitest/Vite built-in transform plugins.
 Its setup files install runtime guards/shims and temporary user data, rather
 than custom transforms. A narrower policy could cache only proven immutable
 source/dependency inputs and leave tests, setup, virtual modules, external
@@ -1370,7 +1370,7 @@ process signals. These Mac/Node 24 timings motivated the hosted comparison.
 The [pinned Vitest pool documentation](https://github.com/vitest-dev/vitest/blob/v4.1.11/docs/config/pool.md)
 defaults to forks and documents thread limitations around process APIs and
 native libraries. [Node's worker documentation](https://nodejs.org/docs/latest-v24.x/api/worker_threads.html#new-workerfilename-options)
-also excludes V8 flags from worker `execArgv`. Orca's `--expose-gc` worker flag
+also excludes V8 flags from worker `execArgv`. Keel's `--expose-gc` worker flag
 fails with `ERR_WORKER_INVALID_EXEC_ARGV` under threads. The experiment starts
 both parent processes with that flag, retains it on fork workers, and removes
 it only from thread worker arguments; GC availability is checked in every
