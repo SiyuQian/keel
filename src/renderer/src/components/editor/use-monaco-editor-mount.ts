@@ -1,3 +1,4 @@
+import { installCodeIntelHoverLink } from '@/lib/monaco-code-intel-hover-link'
 import { useCallback, useLayoutEffect, useRef } from 'react'
 import type { OnMount } from '@monaco-editor/react'
 import { useAppStore } from '@/store'
@@ -73,6 +74,7 @@ export function useMonacoEditorMount(params: MonacoEditorMountParams): OnMount {
     (editorInstance, monaco) => {
       editorRef.current = editorInstance
       setMountedEditor(editorInstance)
+      const codeIntelHoverLink = installCodeIntelHoverLink(editorInstance)
       const uninstallE2EProbe = installMonacoE2EProbe(editorInstance, filePath)
       let autoHeightSub: { dispose: () => void } | null = null
       let autoHeightFrame: number | null = null
@@ -176,6 +178,7 @@ export function useMonacoEditorMount(params: MonacoEditorMountParams): OnMount {
       })
 
       editorInstance.onDidDispose(() => {
+        codeIntelHoverLink.dispose()
         cursorPositionSub.dispose()
         scrollStateSub.dispose()
         gutterMouseDownSub.dispose()

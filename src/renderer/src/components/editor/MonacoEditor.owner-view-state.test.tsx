@@ -31,6 +31,9 @@ vi.mock('@/lib/monaco-setup', async () => {
   loader.config({ monaco })
   return {}
 })
+vi.mock('@/lib/monaco-code-intel-hover-link', () => ({
+  installCodeIntelHoverLink: () => ({ dispose: vi.fn() })
+}))
 vi.mock('./useContextualCopySetup', () => ({
   useContextualCopySetup: () => ({ setupCopy: vi.fn(), toastNode: null })
 }))

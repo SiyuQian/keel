@@ -135,3 +135,21 @@ describe('packaged runtime type-declaration and source-map pruning', () => {
     }
   })
 })
+
+it('retains TS standard libraries but removes API declarations and other package types', async () => {
+  const resourcesDir = await mkdtemp(join(tmpdir(), 'orca-ts-lib-prune-'))
+  try {
+    const tsLib = join(resourcesDir, 'node_modules', 'typescript-api', 'lib')
+    const otherLib = join(resourcesDir, 'node_modules', 'other', 'lib')
+    await mkdir(tsLib, { recursive: true })
+    await mkdir(otherLib, { recursive: true })
+    await writeFile(join(tsLib, 'lib.es5.d.ts'), 'interface Array<T> {}')
+    await writeFile(join(tsLib, 'typescript.d.ts'), 'export {}')
+    await writeFile(join(otherLib, 'lib.es5.d.ts'), 'export {}')
+    prunePackagedRuntimeTypeAndSourceMapArtifacts(resourcesDir)
+    expect(await readdir(tsLib)).toEqual(['lib.es5.d.ts'])
+    expect(await readdir(otherLib)).toEqual([])
+  } finally {
+    await rm(resourcesDir, { force: true, recursive: true })
+  }
+})

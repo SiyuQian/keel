@@ -1,3 +1,4 @@
+import { CodeIntelExperimentalSetting } from './CodeIntelExperimentalSetting'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { Label } from '../ui/label'
 import { Switch } from '../ui/switch'
@@ -35,6 +36,9 @@ export function ExperimentalPane({
   hiddenExperimentalUnlocked = false
 }: ExperimentalPaneProps): React.JSX.Element {
   const searchQuery = useAppStore((s) => s.settingsSearchQuery)
+  const showCodeIntel = matchesSettingsSearch(searchQuery, [
+    getExperimentalSearchEntry().codeIntelligence
+  ])
   const showPet = matchesSettingsSearch(searchQuery, [getExperimentalSearchEntry().pet])
   const showNativeChat = matchesSettingsSearch(searchQuery, [
     getExperimentalSearchEntry().nativeChat
@@ -61,6 +65,9 @@ export function ExperimentalPane({
 
   return (
     <div className="space-y-4">
+      {showCodeIntel ? (
+        <CodeIntelExperimentalSetting settings={settings} updateSettings={updateSettings} />
+      ) : null}
       {showAgentDashboard ? (
         <AgentDashboardExperimentalSetting settings={settings} updateSettings={updateSettings} />
       ) : null}

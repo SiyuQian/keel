@@ -1,3 +1,4 @@
+import { getCodeIntelSearchEntry } from './CodeIntelExperimentalSetting'
 import type { SettingsSearchEntry } from './settings-search'
 import { createLocalizedCatalog } from '@/i18n/localized-catalog'
 import { translate } from '@/i18n/i18n'
@@ -8,6 +9,7 @@ import { getEphemeralVmsSearchEntry } from './ephemeral-vms-search'
 
 export const getExperimentalPaneSearchEntries = createLocalizedCatalog(
   (): SettingsSearchEntry[] => [
+    getCodeIntelSearchEntry(),
     {
       title: translate('auto.components.settings.experimental.search.87d99e634b', 'Pet'),
       description: translate(
@@ -197,6 +199,7 @@ function findEntry(title: string): SettingsSearchEntry {
 
 export function getExperimentalSearchEntry() {
   return {
+    codeIntelligence: getCodeIntelSearchEntry(),
     pet: findEntry(translate('auto.components.settings.experimental.search.87d99e634b', 'Pet')),
     nativeChat: findEntry(
       translate('auto.components.settings.experimental.search.nativeChat.title', 'Chat UI')

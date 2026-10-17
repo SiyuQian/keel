@@ -1,3 +1,6 @@
+import { installCodeIntelStoreBinding } from './code-intel-store-binding'
+import { registerCodeIntelProviders } from './monaco-code-intel-providers'
+import { resolveCodeIntelWorktree, isCodeIntelEnabled } from './code-intel-editor-context'
 import { loader } from '@monaco-editor/react'
 import { editorModelRegistry } from './editor-model-registry'
 import * as monaco from 'monaco-editor'
@@ -80,6 +83,11 @@ monacoTS.javascriptDefaults.setCompilerOptions({
 })
 
 runMonacoSetupSteps([
+  ['code intelligence store binding', installCodeIntelStoreBinding],
+  [
+    'code intelligence providers',
+    () => registerCodeIntelProviders(resolveCodeIntelWorktree, isCodeIntelEnabled)
+  ],
   ['Vue language registration', () => registerVueLanguage(monaco)],
   ['Svelte language registration', () => registerSvelteLanguage(monaco)],
   ['Astro language registration', () => registerAstroLanguage(monaco)],

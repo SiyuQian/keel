@@ -253,6 +253,9 @@ importers:
       tweetnacl:
         specifier: ^1.0.3
         version: 1.0.3
+      typescript-api:
+        specifier: npm:typescript@6.0.3
+        version: typescript@6.0.3
       ws:
         specifier: ^8.22.0
         version: 8.22.0
@@ -596,9 +599,6 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
-      typescript-api:
-        specifier: npm:typescript@6.0.3
-        version: typescript@6.0.3
       unified:
         specifier: ^11.0.5
         version: 11.0.5

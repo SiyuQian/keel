@@ -70,10 +70,15 @@ const MAX_CONSECUTIVE_DEATHS = 3
 
 function makeQueue(
   workers: FakeWorker[],
-  options: { awaitRetirement?: boolean; makeWorker?: () => FakeWorker } = {}
+  options: {
+    awaitRetirement?: boolean
+    retainActiveSlotOnAbort?: boolean
+    makeWorker?: () => FakeWorker
+  } = {}
 ): WorkerThreadRequestQueue<Request, Response> {
   return new WorkerThreadRequestQueue<Request, Response>({
     awaitRetirement: options.awaitRetirement,
+    retainActiveSlotOnAbort: options.retainActiveSlotOnAbort,
     factory: () => {
       const worker = options.makeWorker?.() ?? new FakeWorker()
       workers.push(worker)
@@ -110,6 +115,58 @@ function labels(worker: FakeWorker): string[] {
 describe('WorkerThreadRequestQueue', () => {
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('retains canceled active work until its response when opted in', async () => {
+    const workers: FakeWorker[] = []
+    const queue = makeQueue(workers, { retainActiveSlotOnAbort: true })
+    const controller = new AbortController()
+    const first = settle(
+      queue.dispatch((id) => ({ id, label: 'active' }), TIMEOUT_MS, controller.signal)
+    )
+    const next = send(queue, 'survivor')
+    controller.abort(new Error('cancelled'))
+    expect(await first).toMatchObject({ message: 'cancelled' })
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0)
+    expect(workers[0].terminated).toBe(false)
+    expect(labels(workers[0])).toEqual(['active'])
+    workers[0].respond()
+    expect(labels(workers[0])).toEqual(['active', 'survivor'])
+    workers[0].respond()
+    expect(await next).toMatchObject({ label: 'survivor' })
+    queue.dispose()
+  })
+
+  it('keeps the original deadline and retirement fence for canceled active work', async () => {
+    vi.useFakeTimers()
+    let retire: (code: number) => void = () => {}
+    const workers: FakeWorker[] = []
+    const queue = makeQueue(workers, {
+      retainActiveSlotOnAbort: true,
+      awaitRetirement: true,
+      makeWorker: () => {
+        const worker = new FakeWorker()
+        worker.exit = new Promise((resolve) => {
+          retire = resolve
+        })
+        return worker
+      }
+    })
+    const controller = new AbortController()
+    const first = settle(
+      queue.dispatch((id) => ({ id, label: 'active' }), TIMEOUT_MS, controller.signal)
+    )
+    const next = settle(send(queue, 'survivor'))
+    await vi.advanceTimersByTimeAsync(500)
+    controller.abort(new Error('cancelled'))
+    expect(await first).toMatchObject({ message: 'cancelled' })
+    expect(workers[0].terminated).toBe(false)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(workers[0].terminated).toBe(true)
+    expect(await next).toMatchObject({ message: 'unavailable: previous worker still exiting' })
+    expect(workers).toHaveLength(1)
+    retire(1)
+    queue.dispose()
   })
 
   it('cancels queued requests without retiring active work and retires active cancellation', async () => {
