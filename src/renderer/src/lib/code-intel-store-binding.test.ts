@@ -21,7 +21,8 @@ const fixture = vi.hoisted(() => {
     setPendingEditorReveal: vi.fn()
   }
   const opener: unknown = null
-  return { state, opener, models: new Map(), mounted: [] as unknown[] }
+  const mounted: unknown[] = []
+  return { state, opener, models: new Map(), mounted }
 })
 vi.mock('@/store', () => ({ useAppStore: { getState: () => fixture.state, subscribe: vi.fn() } }))
 vi.mock('monaco-editor', () => ({
