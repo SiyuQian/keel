@@ -68,6 +68,7 @@ const workflowRootScans = new SkillScanCoalescer<RootScan>(MAX_CACHED_SKILL_ROOT
   maximumPending: 64,
   budget: workflowScanBudget
 })
+const MAX_CONCURRENT_WORKFLOW_ROOT_SCANS = 16
 const rootScans = new SkillScanCoalescer<RootScan>(MAX_CACHED_SKILL_ROOTS)
 /** Last answered scan per root key, read only when a later scan goes unavailable. */
 const lastKnownRootScans = new Map<string, { skills: ScannedSkill[]; recordedAt: number }>()
@@ -322,9 +323,13 @@ export async function discoverSkills(args: {
         })
       : [])
   ].filter((root) => rootMayContainSourceKind(root, args.sourceKinds))
-  const scans = await Promise.all(
-    roots.map((root) => scanRootShared(root, refresh, args.includeUserPlugins))
-  )
+  const bounded = args.includeUserPlugins === true
+  const scanTasks = roots.map((root) => () => scanRootShared(root, refresh, bounded))
+  // Why queue: bounded scans share one pending budget, so starting every root at once
+  // shed healthy later roots. Width 16 keeps about 20 stalled 3 s roots inside 8 s.
+  const scans = bounded
+    ? await runSkillCandidateTasks(scanTasks, MAX_CONCURRENT_WORKFLOW_ROOT_SCANS)
+    : await Promise.all(scanTasks.map((scan) => scan()))
   const sources: SkillDiscoverySource[] = roots.map((root, index) => ({
     ...root,
     providers: [...root.providers],

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import type { DiscoveredSkill } from '../../shared/skills'
+import { WORKFLOW_ISSUES } from '../../shared/workflow-observation'
 import { observeWorkflows } from './workflow-discovery'
 
 const directories: string[] = []
@@ -85,7 +86,7 @@ it('bounds candidate scans and aggregate output with visible partial inventory',
     { kind: 'native-host', cwd: undefined }
   )
   expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThanOrEqual(2 * 1024 * 1024)
-  expect(result.issues.join(' ')).toContain('256')
+  expect(result.issues).toContain(WORKFLOW_ISSUES.packages)
 })
 it('stops before aggregate source bytes exceed the response limit', async () => {
   const skill = await fixture()
@@ -100,5 +101,5 @@ it('stops before aggregate source bytes exceed the response limit', async () => 
   expect(result.entries.length).toBeGreaterThan(0)
   expect(result.entries.length).toBeLessThan(20)
   expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThanOrEqual(2 * 1024 * 1024)
-  expect(result.issues.join(' ')).toContain('2 MiB')
+  expect(result.issues).toContain(WORKFLOW_ISSUES.response)
 })

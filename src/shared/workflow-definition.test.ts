@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { parseWorkflowDefinition, isOrcaCoordinatorWorkflow } from './workflow-definition'
+import {
+  parseWorkflowDefinition,
+  parseWorkflowYaml,
+  isOrcaCoordinatorWorkflow
+} from './workflow-definition'
 
 const source = `version: 1
 max_fix_rounds: 2
@@ -71,4 +75,16 @@ describe('workflow definitions', () => {
     definition.stages[5]!.session = 'worker'
     expect(isOrcaCoordinatorWorkflow('orca-dev-workflow', definition)).toBe(false)
   })
+})
+
+it('rejects YAML beyond the node, depth, alias and size limits', () => {
+  expect(parseWorkflowYaml(`items: [${Array(4000).fill('1').join(',')}]`)).toBeTruthy()
+  expect(() => parseWorkflowYaml(`items: [${Array(5000).fill('1').join(',')}]`)).toThrow(
+    'parsing limits'
+  )
+  expect(() => parseWorkflowYaml(`deep: ${'['.repeat(40)}1${']'.repeat(40)}`)).toThrow(
+    'parsing limits'
+  )
+  expect(() => parseWorkflowYaml('a: &x 1\nb: *x')).toThrow('aliases')
+  expect(() => parseWorkflowYaml(`a: "${'x'.repeat(129 * 1024)}"`)).toThrow('128 KiB')
 })

@@ -15,6 +15,7 @@ import { isSkillRootUnavailableError, SkillScanCoalescer } from './skill-scan-co
 import { workflowScanBudget } from './workflow-scan-budget'
 import { clearWorkflowPluginMetadataCache } from './claude-plugin-skill-sources'
 import { clearWorkflowDiscoveryCaches, observeWorkflows } from './workflow-discovery'
+import { WORKFLOW_ISSUES } from '../../shared/workflow-observation'
 
 // Why: on WSL the unit of cost is the wsl.exe boot plus one `find` per skill, so
 // the whole result is what must be shared. The native path shares at root level
@@ -25,11 +26,13 @@ const MAX_CACHED_SKILL_TARGETS = 32
 type TargetScanObservation =
   | { kind: 'native'; result: SkillDiscoveryResult }
   | { kind: 'wsl'; observation: WslSkillDiscoveryObservation }
+// Why no budget here: this only composes the coalescers below, whose leaf reads hold
+// the slots. A slot here too was stranded whenever this deadline ended first.
 const workflowTargets = new SkillScanCoalescer<SkillDiscoveryResult>(32, Date.now, {
   timeoutMs: 10000,
-  maximumPending: 8,
-  budget: workflowScanBudget
+  maximumPending: 8
 })
+// Keeps its slot: the WSL branch runs one uncancellable wsl.exe scan directly.
 const workflowSkillTargets = new SkillScanCoalescer<TargetScanObservation>(32, Date.now, {
   timeoutMs: 8000,
   maximumPending: 8,
@@ -246,7 +249,7 @@ export async function discoverSkillsOnTarget(
     ).value
     const issues = [...(result.workflows?.issues ?? [])]
     if (result.sources.some((source) => source.skippedReason === 'unavailable')) {
-      issues.push('Partial inventory: some Skill locations are unavailable. Refresh to retry.')
+      issues.push(WORKFLOW_ISSUES.unavailableLocations)
     }
     return {
       ...result,

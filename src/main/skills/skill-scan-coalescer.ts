@@ -4,9 +4,16 @@ export type SkillScanOutcome<T> = { value: T; cached: boolean }
 export type SkillScanRunOptions = {
   /** 0 keeps nothing after the scan settles, so the entry only dedups concurrent callers. */
   ttlMs: number
-  /** Skip every cached and in-flight result and re-read disk. */
+  /**
+   * Skip the cached result. Without `maximumPending`, also skip in-flight work and
+   * re-read disk. A bounded instance still joins live work unless `replacePending`
+   * is set. One with a `budget` also always joins a scan aborted by its timeout
+   * until that scan's underlying operation settles, so repeated refresh never
+   * stacks stalled reads. A scan aborted by `clear()` is never joined; the caller
+   * starts a fresh one, still capped by the budget.
+   */
   refresh?: boolean
-  /** A fresh observation can replace live work within the shared budget. */
+  /** Bounded instances: start fresh work beside a live (not aborted) scan, within the budget. */
   replacePending?: boolean
 }
 
@@ -18,6 +25,8 @@ type PendingEntry<T> = {
   result: Promise<T>
   startedAt: number
   abort: AbortController
+  /** Aborted by `clear()`: its answer may predate the mutation that cleared it. */
+  cleared?: boolean
 }
 
 // Why: a root on a stalled network mount can leave a readdir that never settles.
@@ -114,7 +123,8 @@ export class SkillScanCoalescer<T> {
     if (fresh) {
       return { value: fresh.value, cached: true }
     }
-    const inFlight = this.pending.get(key)
+    const entry = this.pending.get(key)
+    const inFlight = entry?.cleared ? undefined : entry
     if (
       inFlight &&
       ((this.limits.budget && inFlight.abort.signal.aborted) ||
@@ -140,7 +150,7 @@ export class SkillScanCoalescer<T> {
         })
     }
     if (
-      !inFlight &&
+      !entry &&
       this.limits.maximumPending !== undefined &&
       this.pending.size >= this.limits.maximumPending
     ) {
@@ -154,6 +164,7 @@ export class SkillScanCoalescer<T> {
     this.cache.clear()
     if (this.limits.maximumPending) {
       for (const entry of this.pending.values()) {
+        entry.cleared = true
         entry.abort.abort()
       }
     } else {
@@ -178,7 +189,7 @@ export class SkillScanCoalescer<T> {
         // invalidate — a scan that began before the mutation resolves afterwards
         // and would re-cache its pre-mutation result with a fresh lifetime. This
         // one check covers all three ways it can be superseded: `clear()` empties
-        // `pending`, a refresh overwrites the slot, and so does the replacement
+        // or aborts `pending`, a refresh overwrites the slot, and so does the replacement
         // for a scan abandoned past MAX_JOINABLE_SCAN_AGE_MS.
         if (ttlMs > 0 && !abort.signal.aborted && this.pending.get(key)?.promise === promise) {
           this.write(key, value, ttlMs)

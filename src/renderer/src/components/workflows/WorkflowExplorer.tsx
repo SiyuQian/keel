@@ -1,5 +1,6 @@
 import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 import type { SkillDiscoveryTarget } from '../../../../shared/skills'
+import { WORKFLOW_ISSUES } from '../../../../shared/workflow-observation'
 import { useState } from 'react'
 import { ArrowLeft, Loader2, RefreshCw, Workflow, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,43 @@ export type WorkflowExplorerProps = {
   hostLabel: string | null
   onBack: () => void
   onClose: () => void
+}
+function issueText(issue: string): string {
+  switch (issue) {
+    case WORKFLOW_ISSUES.packages:
+      return translate(
+        'workflows.issuePackages',
+        'Partial inventory: only the first 256 installed skill packages were inspected.'
+      )
+    case WORKFLOW_ISSUES.locations:
+      return translate(
+        'workflows.issueLocations',
+        'Partial inventory: only the first 256 installed package locations were inspected.'
+      )
+    case WORKFLOW_ISSUES.response:
+      return translate(
+        'workflows.issueResponse',
+        'Partial inventory: workflow response reached the 2 MiB limit.'
+      )
+    case WORKFLOW_ISSUES.documents:
+      return translate(
+        'workflows.issueDocuments',
+        'Partial Skill sources: only the first 128 documents were read.'
+      )
+    case WORKFLOW_ISSUES.documentResponse:
+      return translate(
+        'workflows.issueDocumentResponse',
+        'Partial Skill sources: response reached the 2 MiB limit.'
+      )
+    case WORKFLOW_ISSUES.unavailableLocations:
+      return translate(
+        'workflows.issueUnavailableLocations',
+        'Partial inventory: some Skill locations are unavailable. Refresh to retry.'
+      )
+    default:
+      // Older hosts sent English sentences instead of codes.
+      return issue
+  }
 }
 export function WorkflowExplorer({
   runtimeTarget,
@@ -29,7 +67,7 @@ export function WorkflowExplorer({
   const visible =
     observation?.entries.filter((entry) => {
       const owner = skills.find((skill) => skill.id === entry.ownerId)
-      return `${entry.definition?.name ?? ''} ${entry.definition?.description ?? ''} ${owner?.name} ${owner?.description} ${owner?.sourceLabel} ${entry.path}`
+      return `${entry.definition?.name ?? ''} ${entry.definition?.description ?? ''} ${owner?.name ?? ''} ${owner?.description ?? ''} ${owner?.sourceLabel ?? ''} ${entry.path}`
         .toLowerCase()
         .includes(query.trim().toLowerCase())
     }) ?? []
@@ -47,6 +85,20 @@ export function WorkflowExplorer({
         <h1 className="flex-1 text-sm font-semibold">
           {translate('workflows.title', 'Workflows')}
         </h1>
+        {/* Why in the header: a status row above the details moved them and focus. */}
+        <span
+          role="status"
+          className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
+        >
+          {inventory.visibleLoading ? (
+            <>
+              <Loader2 className="size-4 shrink-0 animate-spin" />
+              <span className="truncate">
+                {translate('workflows.loading', 'Reading installed workflows…')}
+              </span>
+            </>
+          ) : null}
+        </span>
         <Button
           variant="outline"
           size="sm"
@@ -113,12 +165,6 @@ export function WorkflowExplorer({
           </nav>
         </aside>
         <div className="flex min-w-0 shrink-0 flex-col md:min-h-0 md:flex-1">
-          {inventory.visibleLoading ? (
-            <p role="status" className="flex items-center gap-2 p-5 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              {translate('workflows.loading', 'Reading installed workflows…')}
-            </p>
-          ) : null}
           {inventory.error ? (
             <p
               role="alert"
@@ -133,7 +179,7 @@ export function WorkflowExplorer({
               role="status"
               className="border-b border-border px-5 py-3 text-sm text-muted-foreground"
             >
-              {issue}
+              {issueText(issue)}
             </p>
           ))}
           {inventory.result && !observation ? (

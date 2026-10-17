@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { setImmediate as yieldIO } from 'node:timers/promises'
 import { afterEach, expect, it, vi } from 'vitest'
 import * as reader from '../../shared/node-bounded-file-reader'
+import type { Repo } from '../../shared/repo-types'
 import { clearSkillDiscoveryCaches, discoverSkillsOnTarget } from './skill-discovery-target'
 
 vi.mock('node:os', { spy: true })
@@ -88,7 +89,8 @@ it.each(['registry', 'settings', 'manifest', 'root'])(
       (value) => ({ value }),
       (error) => ({ error })
     )
-    await entered
+    // Why race: settling without reaching the held path must fail fast, not time out.
+    expect(await Promise.race([entered.then(() => 'entered' as const), outcome])).toBe('entered')
     expect(blocked).toBe(1)
     await vi.advanceTimersByTimeAsync(11000)
     await drain()
@@ -119,7 +121,20 @@ it('refreshes YAML while an older Skill document read remains pending', async ()
     markEntered = resolve
   })
   let finish!: (value: reader.BoundedNodeFileRead) => void
+  let yamlReads = 0
+  let markYamlReread!: () => void
+  const yamlReread = new Promise<void>((resolve) => {
+    markYamlReread = resolve
+  })
   vi.spyOn(reader, 'readNodeFileWithinLimit').mockImplementation((path, limit, options) => {
+    if (path === join(owner, 'workflow.yaml')) {
+      return original(path, limit, options).finally(() => {
+        yamlReads++
+        if (yamlReads === 2) {
+          markYamlReread()
+        }
+      })
+    }
     if (path === join(owner, 'SKILL.md')) {
       blocked++
       markEntered()
@@ -132,16 +147,18 @@ it('refreshes YAML while an older Skill document read remains pending', async ()
   })
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
   const old = discoverSkillsOnTarget(target, [], { includeWorkflows: true }).catch(() => undefined)
-  await entered
+  await Promise.race([entered, old])
   expect(blocked).toBe(1)
   await fs.writeFile(
     join(owner, 'workflow.yaml'),
     'version: 1\nstages: [{id: read, session: worker, prompt: New.}]'
   )
   const refreshed = discoverSkillsOnTarget(target, [], { includeWorkflows: true, refresh: true })
-  for (let i = 0; i < 500; i++) {
-    await yieldIO()
-  }
+  // Why wait for the re-read rather than a fixed yield count: on a slow runner the
+  // fake clock otherwise fires the 2 s file-read deadline before real I/O returns.
+  await Promise.race([yamlReread, refreshed])
+  expect(yamlReads).toBe(2)
+  await drain()
   await vi.advanceTimersByTimeAsync(5000)
   await drain()
   const result = await Promise.race([refreshed, Promise.resolve(undefined)])
@@ -158,4 +175,38 @@ it('refreshes YAML while an older Skill document read remains pending', async ()
     (await discoverSkillsOnTarget(target, [], { includeWorkflows: true })).workflows?.documents[0]
       ?.source
   ).toContain('Source.')
+})
+
+it('lists the last repository workflow when the inventory exceeds the pending budget', async () => {
+  const { home, target } = await fixture()
+  const repos = await Promise.all(
+    Array.from({ length: 10 }, async (_, index): Promise<Repo> => {
+      const path = join(home, `repo-${index}`)
+      await fs.mkdir(path, { recursive: true })
+      return {
+        id: `repo-${index}`,
+        path,
+        displayName: `Repo ${index}`,
+        badgeColor: '#737373',
+        addedAt: 1,
+        kind: 'git',
+        connectionId: null
+      }
+    })
+  )
+  const last = join(home, 'repo-9', '.agents', 'skills', 'last')
+  await fs.mkdir(last, { recursive: true })
+  await fs.writeFile(join(last, 'SKILL.md'), '---\nname: last\n---\nLast.')
+  await fs.writeFile(
+    join(last, 'workflow.yaml'),
+    'version: 1\nstages: [{id: read, session: worker, prompt: Last.}]'
+  )
+  for (const refresh of [false, true]) {
+    const result = await discoverSkillsOnTarget(target, repos, { includeWorkflows: true, refresh })
+    expect(result.sources.length).toBeGreaterThan(64)
+    expect(result.sources.filter((source) => source.skippedReason === 'unavailable')).toEqual([])
+    expect(
+      result.workflows?.entries.map((entry) => entry.definition?.stages[0]?.prompt)
+    ).toContain('Last.')
+  }
 })

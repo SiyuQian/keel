@@ -18,4 +18,33 @@ describe('runSkillCandidateTasks', () => {
     expect(maxActive).toBe(4)
     expect(results).toEqual(Array.from({ length: 12 }, (_, index) => index))
   })
+
+  it('rejects only after running siblings settle and starts no further task', async () => {
+    const gates: (() => void)[] = []
+    let started = 0
+    let settled = 0
+    const outcome = runSkillCandidateTasks(
+      Array.from({ length: 8 }, (_, index) => async () => {
+        started += 1
+        if (index === 0) {
+          throw new Error('first failed')
+        }
+        await new Promise<void>((resolve) => gates.push(resolve))
+        settled += 1
+        return index
+      })
+    ).then(
+      () => 'resolved',
+      (error: unknown) => (error instanceof Error ? error.message : 'unknown')
+    )
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(started).toBe(4)
+    expect(await Promise.race([outcome, Promise.resolve('pending')])).toBe('pending')
+    for (const release of gates.splice(0)) {
+      release()
+    }
+    expect(await outcome).toBe('first failed')
+    expect(settled).toBe(3)
+    expect(started).toBe(4)
+  })
 })

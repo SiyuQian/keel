@@ -1,8 +1,9 @@
 import type { DiscoveredSkill } from '../../shared/skills'
-import type {
-  WorkflowEntry,
-  WorkflowObservation,
-  WorkflowSkillDocument
+import {
+  WORKFLOW_ISSUES,
+  type WorkflowEntry,
+  type WorkflowObservation,
+  type WorkflowSkillDocument
 } from '../../shared/workflow-observation'
 import type { ResolvedSkillDiscoveryTarget } from './skill-discovery-target'
 import { join, posix } from 'node:path'
@@ -49,10 +50,10 @@ function packageVersion(source: string): string | null {
   }
 }
 
+// No budget: every read below goes through `fileReads`, which holds the slots.
 const workflowScans = new SkillScanCoalescer<WorkflowObservation>(32, Date.now, {
   timeoutMs: 10_000,
-  maximumPending: 8,
-  budget: workflowScanBudget
+  maximumPending: 8
 })
 
 const fileReads = new SkillScanCoalescer<string>(128, Date.now, {
@@ -124,17 +125,13 @@ async function readWorkflows(
   }
   const installed = skills.filter((skill) => skill.installed)
   if (installed.length > MAX_CANDIDATES) {
-    result.issues.push(
-      'Partial inventory: only the first 256 installed skill packages were inspected.'
-    )
+    result.issues.push(WORKFLOW_ISSUES.packages)
   }
   const candidates: { skill: DiscoveredSkill; directoryPath: string }[] = []
   locations: for (const skill of installed) {
     for (const directoryPath of new Set(skill.directoryPaths ?? [skill.directoryPath])) {
       if (candidates.length === MAX_CANDIDATES) {
-        result.issues.push(
-          'Partial inventory: only the first 256 installed package locations were inspected.'
-        )
+        result.issues.push(WORKFLOW_ISSUES.locations)
         break locations
       }
       candidates.push({ skill, directoryPath })
@@ -181,7 +178,7 @@ async function readWorkflows(
         seenWorkflows.add(identity)
       }
       if (!fits(entry)) {
-        result.issues.push('Partial inventory: workflow response reached the 2 MiB limit.')
+        result.issues.push(WORKFLOW_ISSUES.response)
         return result
       }
       result.entries.push(entry)
@@ -200,7 +197,7 @@ async function readWorkflows(
     }
   }
   if (wanted.size > MAX_DOCUMENTS) {
-    result.issues.push('Partial Skill sources: only the first 128 documents were read.')
+    result.issues.push(WORKFLOW_ISSUES.documents)
   }
   const sources = new Map<string, Promise<Omit<WorkflowSkillDocument, 'skillId'>>>()
   const documents = [...wanted.values()].slice(0, MAX_DOCUMENTS)
@@ -227,7 +224,7 @@ async function readWorkflows(
           packageVersion: null,
           error: 'Skill source omitted: the response reached the 2 MiB limit.'
         }
-        result.issues.push('Partial Skill sources: response reached the 2 MiB limit.')
+        result.issues.push(WORKFLOW_ISSUES.documentResponse)
         if (fits(document)) {
           result.documents.push(document)
         }

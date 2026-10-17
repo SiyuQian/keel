@@ -19241,6 +19241,12 @@
     "yaml": "YAML",
     "planReturn": "plan-review → plan",
     "fixReturn": "fix → review",
-    "packageVersion": " · v{{version}}"
+    "packageVersion": " · v{{version}}",
+    "issuePackages": "部分清单：仅检查了前 256 个已安装的 Skill 包。",
+    "issueLocations": "部分清单：仅检查了前 256 个已安装的包位置。",
+    "issueResponse": "部分清单：工作流程响应已达到 2 MiB 上限。",
+    "issueDocuments": "部分 Skill 源：仅读取了前 128 个文档。",
+    "issueDocumentResponse": "部分 Skill 源：响应已达到 2 MiB 上限。",
+    "issueUnavailableLocations": "部分清单：部分 Skill 位置不可用。请刷新重试。"
   }
 }

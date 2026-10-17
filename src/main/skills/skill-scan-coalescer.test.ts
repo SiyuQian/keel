@@ -388,9 +388,10 @@ it('retains superseded uncancellable work in one budget across acquisition phase
     expect((await outcomes).every((outcome) => outcome.status === 'rejected')).toBe(true)
     firstPhase.clear()
     await vi.advanceTimersByTimeAsync(31000)
+    // A cleared scan is not joined; the fresh one is still capped by the retained budget.
     await expect(
       firstPhase.run('host', { ttlMs: 0, refresh: true, replacePending: true }, async () => 4)
-    ).rejects.toThrow('timed out')
+    ).rejects.toBeInstanceOf(SkillScanShedError)
     await expect(
       secondPhase.run('another-host', { ttlMs: 0 }, async () => 3)
     ).rejects.toBeInstanceOf(SkillScanShedError)
@@ -403,4 +404,22 @@ it('retains superseded uncancellable work in one budget across acquisition phase
     gates[1]!.resolve(2)
     vi.useRealTimers()
   }
+})
+
+it('a call after clear() does not join the aborted scan and sees the mutated disk', async () => {
+  const budget = { pending: 0, maximumPending: 4 }
+  const coalescer = new SkillScanCoalescer<string>(8, Date.now, {
+    timeoutMs: 1000,
+    maximumPending: 8,
+    budget
+  })
+  const stalled = deferred<string>()
+  const old = coalescer.run('root', { ttlMs: 0 }, () => stalled.promise).catch(() => undefined)
+  coalescer.clear()
+  const after = await coalescer.run('root', { ttlMs: 0 }, async () => 'after-install')
+  expect(after).toEqual({ value: 'after-install', cached: false })
+  expect(budget.pending).toBe(1)
+  stalled.resolve('before-install')
+  await old
+  expect(budget.pending).toBe(0)
 })

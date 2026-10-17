@@ -154,12 +154,15 @@ it('shows configuration failures with original text and visible partial-inventor
         }
       ],
       documents: [],
-      issues: ['Partial inventory: read limit reached.']
+      issues: ['Partial inventory: read limit reached.', 'unavailable-locations']
     }
   })
   explorer()
   expect(await screen.findByText('Unsupported workflow version')).toBeTruthy()
   expect(screen.getByText('Partial inventory: read limit reached.')).toBeTruthy()
+  expect(
+    screen.getByText('Partial inventory: some Skill locations are unavailable. Refresh to retry.')
+  ).toBeTruthy()
   expect(screen.getByRole('tab', { name: 'Flow' }).getAttribute('disabled')).not.toBeNull()
   expect(screen.getByText(/stages: unsupported/).textContent).toBe(
     'version: 2\nstages: unsupported'
@@ -283,7 +286,8 @@ it('shows delayed feedback for a slow request and resets its timer on host switc
   await act(async () => {
     await vi.advanceTimersByTimeAsync(200)
   })
-  expect(screen.getByText('Reading installed workflows…')).toBeTruthy()
+  // Reserved in the header so delayed feedback never moves the details below it.
+  expect(screen.getByText('Reading installed workflows…').closest('header')).not.toBeNull()
   rendered.rerender(
     <WorkflowExplorer
       runtimeTarget={{ kind: 'environment', environmentId: 'remote' }}

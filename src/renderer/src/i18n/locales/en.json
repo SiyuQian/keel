@@ -19309,6 +19309,12 @@
     "yaml": "YAML",
     "planReturn": "plan-review → plan",
     "fixReturn": "fix → review",
-    "packageVersion": " · v{{version}}"
+    "packageVersion": " · v{{version}}",
+    "issuePackages": "Partial inventory: only the first 256 installed skill packages were inspected.",
+    "issueLocations": "Partial inventory: only the first 256 installed package locations were inspected.",
+    "issueResponse": "Partial inventory: workflow response reached the 2 MiB limit.",
+    "issueDocuments": "Partial Skill sources: only the first 128 documents were read.",
+    "issueDocumentResponse": "Partial Skill sources: response reached the 2 MiB limit.",
+    "issueUnavailableLocations": "Partial inventory: some Skill locations are unavailable. Refresh to retry."
   }
 }
