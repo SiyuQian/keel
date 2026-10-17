@@ -1,14 +1,17 @@
+import { createHash } from 'node:crypto'
 import { dirname, resolve } from 'node:path'
 import ts from 'typescript-api'
 import { isPathInsideOrEqual } from '../../shared/cross-platform-path'
 
 export type LanguageServiceEntry = { projectRoot: string; service: ts.LanguageService }
 type Overlay = { text: string; version: number }
-type PoolOptions = { maxServices: number; idleMs: number }
+type PoolOptions = { maxServices: number }
 
 export class LanguageServicePool {
   private readonly services = new Map<string, ts.LanguageService>()
   private readonly overlays = new Map<string, Overlay>()
+  // Why: unchanged files (lib and dependency .d.ts) keep their parse across per-query services.
+  private readonly registry = ts.createDocumentRegistry()
 
   constructor(private readonly options: PoolOptions) {}
 
@@ -32,8 +35,8 @@ export class LanguageServicePool {
   }
 
   acquire(filePath: string, workspaceRoot?: string): LanguageServiceEntry | null {
-    // shortcut: rebuild per query for fresh disk/config state; use watched snapshots if large projects become slow.
-    this.disposeAll()
+    // shortcut: new program per query keeps config and resolution fresh; parses are shared via
+    // the content-hashed registry. Keep a watched service per config if checking gets slow.
     const config = this.findConfig(filePath, workspaceRoot)
     if (!config) {
       return null
@@ -43,12 +46,27 @@ export class LanguageServicePool {
       return null
     }
     const projectRoot = dirname(parsed.options.configFilePath?.toString() ?? config)
+    // One read per file per query keeps each version and snapshot consistent during disk writes.
+    const scripts = new Map<string, { text: string; version: string } | null>()
+    const script = (fileName: string): { text: string; version: string } | null => {
+      const path = resolve(fileName)
+      let entry = scripts.get(path)
+      if (entry === undefined) {
+        const text = this.overlays.get(path)?.text ?? ts.sys.readFile(fileName)
+        entry =
+          text === undefined
+            ? null
+            : { text, version: createHash('sha1').update(text).digest('base64') }
+        scripts.set(path, entry)
+      }
+      return entry
+    }
     const host: ts.LanguageServiceHost = {
       getScriptFileNames: () => [...new Set([...parsed.fileNames, filePath])],
-      getScriptVersion: (fileName) => String(this.overlays.get(resolve(fileName))?.version ?? 0),
+      getScriptVersion: (fileName) => script(fileName)?.version ?? '',
       getScriptSnapshot: (fileName) => {
-        const text = this.overlays.get(resolve(fileName))?.text ?? ts.sys.readFile(fileName)
-        return text === undefined ? undefined : ts.ScriptSnapshot.fromString(text)
+        const entry = script(fileName)
+        return entry ? ts.ScriptSnapshot.fromString(entry.text) : undefined
       },
       getCurrentDirectory: () => projectRoot,
       getCompilationSettings: () => parsed.options,
@@ -62,7 +80,10 @@ export class LanguageServicePool {
       getDirectories: ts.sys.getDirectories,
       realpath: ts.sys.realpath
     }
-    const service = ts.createLanguageService(host, ts.createDocumentRegistry())
+    const service = ts.createLanguageService(host, this.registry)
+    // Build before releasing the previous service, or the registry drops every shared parse.
+    service.getProgram()
+    this.disposeAll()
     if (this.options.maxServices > 0) {
       this.services.set(config, service)
     }

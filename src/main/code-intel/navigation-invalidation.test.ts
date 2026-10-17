@@ -9,7 +9,7 @@ let root: string
 let pool: LanguageServicePool
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'code-intel-invalidation-'))
-  pool = new LanguageServicePool({ maxServices: 3, idleMs: 60_000 })
+  pool = new LanguageServicePool({ maxServices: 3 })
   await writeFile(join(root, 'tsconfig.json'), JSON.stringify({ include: ['*.ts'] }))
   await writeFile(join(root, 'a.ts'), 'export const value = 1\n')
   await writeFile(join(root, 'b.ts'), 'import { value } from "./a"\nvalue\n')
@@ -148,7 +148,7 @@ it('does not reuse overlays across workspace snapshots', () => {
   }
 })
 
-it('uses loaded JSON text for imported property ranges instead of newer disk text', async () => {
+it('uses unsaved JSON text for imported property ranges instead of disk text', async () => {
   await writeFile(
     join(root, 'tsconfig.json'),
     JSON.stringify({

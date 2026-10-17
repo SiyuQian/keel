@@ -10,7 +10,6 @@ import { detectLanguage } from './language-detect'
 import { scheduleEditorLineReveal } from '@/store/slices/editor/focus/editor-focus-reveal'
 import { setCodeIntelEditorContext, type WorktreeContext } from './code-intel-editor-context'
 import { setTypeScriptNavigationMode } from './monaco-typescript-navigation-mode'
-import { basename } from './path'
 
 export function resolveCodeIntelContext(
   model: Pick<monaco.editor.ITextModel, 'uri' | 'isDisposed'>
@@ -40,6 +39,8 @@ export function resolveCodeIntelContext(
   }
   const buffers: WorktreeContext['buffers'] = []
   const snapshots: (() => boolean)[] = []
+  // Why: a hidden tab's retained model misses external writes; only mounted clean models beat disk.
+  const mounted = new Set(monaco.editor.getEditors().map((editor) => editor.getModel()))
   for (const candidate of state.openFiles) {
     if (
       candidate.mode !== 'edit' ||
@@ -55,7 +56,11 @@ export function resolveCodeIntelContext(
     const bufferModel = monaco.editor.getModel(
       monaco.Uri.parse(toEditorModelUri(candidate.filePath, owner))
     )
-    if (!bufferModel && !candidate.isDirty && state.editorDrafts[candidate.id] === undefined) {
+    if (
+      !candidate.isDirty &&
+      state.editorDrafts[candidate.id] === undefined &&
+      !(bufferModel && mounted.has(bufferModel))
+    ) {
       continue
     }
     const text = bufferModel?.getValue() ?? state.editorDrafts[candidate.id]
@@ -157,10 +162,15 @@ export function installCodeIntelStoreBinding(): void {
             toEditorModelUri(file.filePath, getEditorModelOwnerKey(file, state)) ===
               resource.toString()
         )?.filePath ?? resource.fsPath
+      // Why: an outside-root target (bundled lib.d.ts, hoisted node_modules) is not a project tab.
+      const relative = relativePathInsideRoot(context.worktreeRoot, target)
+      if (relative === null) {
+        return false
+      }
       const fileId = state.openFile(
         {
           filePath: target,
-          relativePath: relativePathInsideRoot(context.worktreeRoot, target) ?? basename(target),
+          relativePath: relative,
           worktreeId: sourceFile.worktreeId,
           runtimeEnvironmentId: null,
           language: detectLanguage(target),

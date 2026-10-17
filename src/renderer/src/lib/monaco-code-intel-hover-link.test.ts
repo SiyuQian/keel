@@ -129,6 +129,33 @@ it('preserves one pending query through debounce and in-flight mouse jitter on t
   }
 })
 
+const settled: CodeIntelResult[] = [
+  { status: 'ok', bufferVersion: 1, truncated: false, locations: [] },
+  { status: 'error', code: 'busy', message: 'busy' }
+]
+
+it.each(settled)('does not re-query the same word after a $status result', async (result) => {
+  vi.useFakeTimers()
+  const hover = hoverHarness()
+  try {
+    hover.move()
+    await vi.advanceTimersByTimeAsync(120)
+    hover.queries[0].finish(result)
+    await Promise.resolve()
+    hover.move(8)
+    hover.move(9)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(hover.queries).toHaveLength(1)
+    expect(hover.decorations.set).not.toHaveBeenCalled()
+    hover.move(14)
+    await vi.advanceTimersByTimeAsync(120)
+    expect(hover.queries).toHaveLength(2)
+  } finally {
+    hover.link.dispose()
+    vi.useRealTimers()
+  }
+})
+
 it('replaces pending and underlined queries when the same word has a new model version', async () => {
   vi.useFakeTimers()
   const hover = hoverHarness()

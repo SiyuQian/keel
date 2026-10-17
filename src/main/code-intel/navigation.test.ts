@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LanguageServicePool } from './language-service-pool'
-import { getDefinition, findReferences } from './navigation'
+import { answerCodeIntelRequest, getDefinition, findReferences } from './navigation'
 
 let dir: string
 let pool: LanguageServicePool
@@ -43,7 +43,7 @@ beforeEach(async () => {
   await writeFile(join(dir, 'src', 'prompts', 'helpers.ts'), HELPERS, 'utf8')
   await writeFile(join(dir, 'src', 'build-request.ts'), BUILD_REQUEST, 'utf8')
   await writeFile(join(dir, 'src', 'prompts', 'detail.ts'), DETAIL, 'utf8')
-  pool = new LanguageServicePool({ maxServices: 3, idleMs: 60_000 })
+  pool = new LanguageServicePool({ maxServices: 3 })
 })
 
 afterEach(async () => {
@@ -100,6 +100,45 @@ describe('navigation (#961 fixture)', () => {
     expect(result.locations.map((l) => l.absolutePath)).toContain(
       join(dir, 'src', 'prompts', 'helpers.ts')
     )
+  })
+
+  it('answers worker requests by id and replaces overlays per request', () => {
+    const params = {
+      filePath: join(dir, 'src', 'build-request.ts'),
+      relativePath: 'src/build-request.ts',
+      position: { line: 3, character: 9 },
+      bufferVersion: 0
+    }
+    const helpers = join(dir, 'src', 'prompts', 'helpers.ts')
+    const shifted = answerCodeIntelRequest(pool, {
+      id: 7,
+      method: 'definition',
+      params: { ...params, buffers: [{ filePath: helpers, text: `\n\n${HELPERS}`, version: 1 }] }
+    })
+    expect(shifted).toMatchObject({ id: 7, result: { status: 'ok' } })
+    expect(shifted.result.status === 'ok' && shifted.result.locations[0]?.range.start.line).toBe(4)
+    const disk = answerCodeIntelRequest(pool, { id: 8, method: 'definition', params })
+    expect(disk).toMatchObject({ id: 8, result: { status: 'ok' } })
+    expect(disk.result.status === 'ok' && disk.result.locations[0]?.range.start.line).toBe(2)
+  })
+
+  it('answers a throwing worker request with an error instead of exiting', () => {
+    const throwing = new LanguageServicePool({ maxServices: 1 })
+    throwing.setOverlays = () => {
+      throw new Error('boom')
+    }
+    expect(
+      answerCodeIntelRequest(throwing, {
+        id: 9,
+        method: 'references',
+        params: {
+          filePath: join(dir, 'src', 'build-request.ts'),
+          relativePath: 'src/build-request.ts',
+          position: { line: 3, character: 9 },
+          bufferVersion: 0
+        }
+      })
+    ).toEqual({ id: 9, result: { status: 'error', code: 'navigation-failed', message: 'boom' } })
   })
 
   it('returns unsupported:no-tsconfig for a file outside any project', async () => {

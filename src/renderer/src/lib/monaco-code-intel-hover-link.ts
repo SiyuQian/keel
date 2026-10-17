@@ -25,6 +25,8 @@ export function installCodeIntelHoverLink(
   const decorations = editor.createDecorationsCollection([])
   let activeKey: string | null = null
   let pendingKey: string | null = null
+  // Why: an empty or failed result must not re-query on same-word jitter.
+  let settledKey: string | null = null
   let keyModel: monaco.editor.ITextModel | null = null
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   // Bumped to invalidate any in-flight async query whose result is now stale.
@@ -41,6 +43,7 @@ export function installCodeIntelHoverLink(
 
   function cancelPending(): void {
     pendingKey = null
+    settledKey = null
     if (debounceTimer !== null) {
       clearTimeout(debounceTimer)
       debounceTimer = null
@@ -68,7 +71,7 @@ export function installCodeIntelHoverLink(
     }
     const version = model.getVersionId()
     const key = `${version}:${wordKey(line, word)}`
-    if (model === keyModel && (key === activeKey || key === pendingKey)) {
+    if (model === keyModel && (key === activeKey || key === pendingKey || key === settledKey)) {
       return
     }
     cancelPending()
@@ -114,6 +117,7 @@ export function installCodeIntelHoverLink(
         ) {
           return
         }
+        settledKey = key
         if (isOkResult(result) && result.locations.length > 0) {
           underline(line, word, key)
         } else {

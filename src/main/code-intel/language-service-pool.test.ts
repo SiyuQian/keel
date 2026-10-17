@@ -27,7 +27,7 @@ afterEach(async () => {
 
 describe('LanguageServicePool', () => {
   it('finds the nearest tsconfig and serves a language service for a file', () => {
-    const pool = new LanguageServicePool({ maxServices: 3, idleMs: 60_000 })
+    const pool = new LanguageServicePool({ maxServices: 3 })
     const entry = pool.acquire(join(dir, 'src', 'prompts', 'helpers.ts'))
     expect(entry).not.toBeNull()
     expect(entry!.projectRoot).toBe(dir)
@@ -41,14 +41,14 @@ describe('LanguageServicePool', () => {
   it('returns null when no tsconfig is found', async () => {
     const orphan = await mkdtemp(join(tmpdir(), 'orca-code-intel-orphan-'))
     await writeFile(join(orphan, 'a.ts'), 'export const a = 1\n', 'utf8')
-    const pool = new LanguageServicePool({ maxServices: 3, idleMs: 60_000 })
+    const pool = new LanguageServicePool({ maxServices: 3 })
     expect(pool.acquire(join(orphan, 'a.ts'))).toBeNull()
     pool.disposeAll()
     await rm(orphan, { recursive: true, force: true })
   })
 
   it('overlays an in-memory buffer for one file over disk content', () => {
-    const pool = new LanguageServicePool({ maxServices: 3, idleMs: 60_000 })
+    const pool = new LanguageServicePool({ maxServices: 3 })
     const filePath = join(dir, 'src', 'prompts', 'helpers.ts')
     pool.setOverlay(filePath, 'export const FROM_BUFFER = 1\n', 2)
     const entry = pool.acquire(filePath)!
@@ -58,7 +58,7 @@ describe('LanguageServicePool', () => {
   })
 
   it('clears the overlay so subsequent reads fall back to disk content', () => {
-    const pool = new LanguageServicePool({ maxServices: 3, idleMs: 60_000 })
+    const pool = new LanguageServicePool({ maxServices: 3 })
     const filePath = join(dir, 'src', 'prompts', 'helpers.ts')
     pool.setOverlay(filePath, 'export const FROM_BUFFER = 1\n', 2)
     pool.acquire(filePath)!.service.getProgram()!.getSourceFile(filePath)
@@ -73,8 +73,23 @@ describe('LanguageServicePool', () => {
     pool.disposeAll()
   })
 
+  it('reuses parsed source files across queries until their content changes', async () => {
+    const pool = new LanguageServicePool({ maxServices: 1 })
+    const filePath = join(dir, 'src', 'prompts', 'helpers.ts')
+    const parse = () => pool.acquire(filePath)!.service.getProgram()!.getSourceFile(filePath)!
+    const first = parse()
+    expect(parse()).toBe(first)
+    await writeFile(filePath, 'export const FROM_DISK = 1\n', 'utf8')
+    const changed = parse()
+    expect(changed).not.toBe(first)
+    expect(changed.getFullText()).toContain('FROM_DISK')
+    pool.setOverlay(filePath, 'export const FROM_BUFFER = 1\n', 0)
+    expect(parse().getFullText()).toContain('FROM_BUFFER')
+    pool.disposeAll()
+  })
+
   it('evicts the least-recently-used service past the cap', () => {
-    const pool = new LanguageServicePool({ maxServices: 1, idleMs: 60_000 })
+    const pool = new LanguageServicePool({ maxServices: 1 })
     const a = pool.acquire(join(dir, 'src', 'prompts', 'helpers.ts'))!
     expect(pool.size()).toBe(1)
     // Same project root → still one service.

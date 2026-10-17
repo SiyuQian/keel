@@ -21,13 +21,14 @@ const fixture = vi.hoisted(() => {
     setPendingEditorReveal: vi.fn()
   }
   const opener: unknown = null
-  return { state, opener, models: new Map() }
+  return { state, opener, models: new Map(), mounted: [] as unknown[] }
 })
 vi.mock('@/store', () => ({ useAppStore: { getState: () => fixture.state, subscribe: vi.fn() } }))
 vi.mock('monaco-editor', () => ({
   Uri: URI,
   editor: {
     getModel: (uri: URI) => fixture.models.get(uri.toString()),
+    getEditors: () => fixture.mounted.map((mounted) => ({ getModel: () => mounted })),
     registerEditorOpener: (opener: unknown) => {
       fixture.opener = opener
     }
@@ -58,6 +59,7 @@ function model(path: string, text = '', version = 1) {
 }
 beforeEach(() => {
   fixture.models.clear()
+  fixture.mounted = []
   fixture.state = {
     settings: { ...getDefaultSettings('/tmp'), experimentalCodeIntelligence: true },
     openFiles: [file],
@@ -171,15 +173,17 @@ it('reuses an open Windows target without changing its drive spelling', () => {
   vi.unstubAllGlobals()
 })
 
-it('analyzes a clean open target model and rejects its result after a reload', () => {
+it('analyzes a clean mounted target model and rejects its result after a reload', () => {
   const second = { ...file, id: '/repo/b.ts', filePath: '/repo/b.ts', isDirty: false }
   fixture.state.openFiles = [file, second]
   let version = 1
-  fixture.models.set(URI.file(second.filePath).toString(), {
+  const mountedModel = {
     getValue: () => 'export const b = 1',
     getVersionId: () => version,
     isDisposed: () => false
-  })
+  }
+  fixture.models.set(URI.file(second.filePath).toString(), mountedModel)
+  fixture.mounted = [mountedModel]
   const context = resolveCodeIntelContext(model('file:///repo/a.ts'))
   expect(context?.buffers).toEqual([
     { filePath: second.filePath, text: 'export const b = 1', version: 1 }
@@ -241,10 +245,9 @@ it.each([
     if (draft) {
       fixture.state.editorDrafts[candidate.id] = text
     } else {
-      fixture.models.set(
-        URI.file(candidate.filePath).toString(),
-        model(candidate.filePath, text, 2)
-      )
+      const candidateModel = model(candidate.filePath, text, 2)
+      fixture.models.set(URI.file(candidate.filePath).toString(), candidateModel)
+      fixture.mounted = [candidateModel]
     }
     expect(resolveCodeIntelContext(model('file:///repo/a.ts'))?.buffers).toEqual([
       { filePath: candidate.filePath, text, version: draft ? 0 : 2 }
@@ -253,14 +256,13 @@ it.each([
 )
 
 it.each(['b.tsx', 'b.mts', 'b.cjs', 'data.json', 'package.json', 'config/app.json', 'base.jsonc'])(
-  'preserves clean and draft-only semantic snapshots for %s',
+  'preserves mounted clean and draft-only semantic snapshots for %s',
   (name) => {
     const candidate = { ...file, id: `/repo/${name}`, filePath: `/repo/${name}`, isDirty: false }
     fixture.state.openFiles = [file, candidate]
-    fixture.models.set(
-      URI.file(candidate.filePath).toString(),
-      model(candidate.filePath, 'model text', 2)
-    )
+    const candidateModel = model(candidate.filePath, 'model text', 2)
+    fixture.models.set(URI.file(candidate.filePath).toString(), candidateModel)
+    fixture.mounted = [candidateModel]
     const context = resolveCodeIntelContext(model('file:///repo/a.ts'))
     expect(context?.buffers).toEqual([
       { filePath: candidate.filePath, text: 'model text', version: 2 }
@@ -273,23 +275,22 @@ it.each(['b.tsx', 'b.mts', 'b.cjs', 'data.json', 'package.json', 'config/app.jso
   }
 )
 
-it('keeps relevant clean snapshots when their budget is exceeded instead of querying stale disk text', async () => {
-  const candidate = {
-    ...file,
-    id: '/repo/large.json',
-    filePath: '/repo/large.json',
-    isDirty: false
-  }
-  fixture.state.openFiles = [file, candidate]
+it('omits clean models of unmounted tabs and keeps dirty buffers', async () => {
+  const large = { ...file, id: '/repo/large.json', filePath: '/repo/large.json', isDirty: false }
+  const stale = { ...file, id: '/repo/b.ts', filePath: '/repo/b.ts', isDirty: false }
+  const dirty = { ...file, id: '/repo/c.ts', filePath: '/repo/c.ts', isDirty: true }
+  fixture.state.openFiles = [file, large, stale, dirty]
+  fixture.state.editorDrafts = {}
   fixture.models.set(
-    URI.file(candidate.filePath).toString(),
-    model(candidate.filePath, ' '.repeat(4_000_001), 2)
+    URI.file(large.filePath).toString(),
+    model(large.filePath, ' '.repeat(5_000_000))
   )
+  // The hidden tab's retained model predates an agent's disk write.
+  fixture.models.set(URI.file(stale.filePath).toString(), model(stale.filePath, 'old text'))
+  fixture.models.set(URI.file(dirty.filePath).toString(), model(dirty.filePath, 'unsaved', 3))
   const context = resolveCodeIntelContext(model('file:///repo/a.ts'))
-  expect(context?.buffers.map((buffer) => [buffer.filePath, buffer.text.length])).toEqual([
-    ['/repo/large.json', 4_000_001]
-  ])
-  const definition = vi.fn()
+  expect(context?.buffers).toEqual([{ filePath: dirty.filePath, text: 'unsaved', version: 3 }])
+  const definition = vi.fn().mockResolvedValue({ status: 'ok', locations: [], truncated: false })
   vi.stubGlobal('window', { api: { codeIntel: { definition } } })
   try {
     expect(
@@ -304,9 +305,30 @@ it('keeps relevant clean snapshots when their budget is exceeded instead of quer
         bufferText: 'export const a = 1',
         buffers: context?.buffers
       })
-    ).toMatchObject({ code: 'buffer-limit' })
-    expect(definition).not.toHaveBeenCalled()
+    ).toMatchObject({ status: 'ok' })
+    expect(definition).toHaveBeenCalledOnce()
   } finally {
     vi.unstubAllGlobals()
   }
+})
+
+it('does not open a definition outside the workspace root as a project tab', () => {
+  installCodeIntelStoreBinding()
+  const opener = fixture.opener
+  if (
+    !opener ||
+    typeof opener !== 'object' ||
+    !('openCodeEditor' in opener) ||
+    typeof opener.openCodeEditor !== 'function'
+  ) {
+    throw new Error('Missing editor opener')
+  }
+  expect(
+    opener.openCodeEditor(
+      { getModel: () => model('file:///repo/a.ts') },
+      URI.file('/opt/app/typescript-api/lib/lib.es5.d.ts'),
+      { lineNumber: 1, column: 1 }
+    )
+  ).toBe(false)
+  expect(fixture.state.openFile).not.toHaveBeenCalled()
 })

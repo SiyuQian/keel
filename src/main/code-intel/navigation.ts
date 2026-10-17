@@ -4,6 +4,7 @@ import {
   CODE_INTEL_MAX_LOCATIONS,
   CODE_INTEL_MAX_PREVIEW_LEN,
   type CodeIntelLocation,
+  type CodeIntelMethod,
   type CodeIntelRange,
   type CodeIntelRequest,
   type CodeIntelResult
@@ -13,6 +14,37 @@ import type { LanguageServicePool } from './language-service-pool'
 const SUPPORTED_EXT = /\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$/
 
 type RawSpan = { fileName: string; textSpan: ts.TextSpan }
+
+export type CodeIntelWorkerRequest = {
+  id: number
+  method: CodeIntelMethod
+  params: CodeIntelRequest
+}
+
+// Answers every request id, so a throw never surfaces as worker-exited and retires the worker.
+export function answerCodeIntelRequest(
+  pool: LanguageServicePool,
+  request: CodeIntelWorkerRequest
+): { id: number; result: CodeIntelResult } {
+  try {
+    // Every request supplies a complete owner-scoped snapshot; no other workspace retains overlays.
+    pool.setOverlays(request.params.buffers ?? [])
+    const result =
+      request.method === 'definition'
+        ? getDefinition(pool, request.params)
+        : findReferences(pool, request.params)
+    return { id: request.id, result }
+  } catch (error) {
+    return {
+      id: request.id,
+      result: {
+        status: 'error',
+        code: 'navigation-failed',
+        message: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+}
 
 export function getDefinition(
   pool: LanguageServicePool,
