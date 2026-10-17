@@ -207,9 +207,11 @@ async function scanRoot(root: SkillScanRoot, signal: AbortSignal): Promise<Scann
 
 // Why: two roots can share a path (e.g. `~/.claude/skills` is both a home root
 // and a repo root when the home dir is the workspace), and their scan differs
-// only by depth, which `sourceKind` decides.
+// only by depth, which `sourceKind` decides. The id joins the key only for the
+// Codex plugin cache, whose scan layout differs; other same-path roots share.
 function rootScanKey(root: SkillScanRoot): string {
-  return `${root.sourceKind}\0${root.path}\0${JSON.stringify([root.id, root.pluginNamespaces?.toSorted() ?? null])}`
+  const id = root.id === 'codex-plugin-cache' ? root.id : null
+  return `${root.sourceKind}\0${root.path}\0${JSON.stringify([id, root.pluginNamespaces?.toSorted() ?? null])}`
 }
 
 async function scanRootShared(
@@ -282,11 +284,6 @@ function mergeScannedSkill(seen: Map<string, DiscoveredSkill>, skill: ScannedSki
   // agents can see it on the Settings provider badges/filter. Reassign a
   // fresh array — `providers` aliases the scan root's array, so pushing in
   // place would mutate the root and every sibling skill/source sharing it.
-  if (skill.pluginNamespaces?.length) {
-    existing.pluginNamespaces = [
-      ...new Set([...(existing.pluginNamespaces ?? []), ...skill.pluginNamespaces])
-    ]
-  }
   const mergedProviders = [...existing.providers]
   for (const provider of skill.providers) {
     if (!mergedProviders.includes(provider)) {
@@ -294,6 +291,11 @@ function mergeScannedSkill(seen: Map<string, DiscoveredSkill>, skill: ScannedSki
     }
   }
   existing.providers = mergedProviders
+  if (skill.pluginNamespaces?.length) {
+    existing.pluginNamespaces = [
+      ...new Set([...(existing.pluginNamespaces ?? []), ...skill.pluginNamespaces])
+    ]
+  }
 }
 
 export async function discoverSkills(args: {
