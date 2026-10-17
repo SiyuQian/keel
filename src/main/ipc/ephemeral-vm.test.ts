@@ -6,7 +6,7 @@ import { encodePairingOffer, PAIRING_OFFER_VERSION } from '../../shared/pairing'
 import { listEnvironments } from '../../shared/runtime-environment-store'
 import { upsertEphemeralVmRuntime } from '../../shared/ephemeral-vm-runtime-store'
 
-const handlers = new Map<string, (_event: unknown, args: never) => unknown>()
+const handlers = new Map<string, (_event: unknown, args: unknown) => unknown>()
 const {
   handleMock,
   removeHandlerMock,
@@ -45,9 +45,16 @@ vi.mock('./runtime-environments', () => ({
   invalidateRuntimeEnvironmentTransport: invalidateRuntimeEnvironmentTransportMock
 }))
 
+import { DOCKER_WORKSPACE_RECIPE } from '../../shared/docker-workspace-recipe'
 import { registerEphemeralVmHandlers } from './ephemeral-vm'
 
 const tempDirs: string[] = []
+const expectedCloudRecipe = {
+  id: 'cloud-sandbox',
+  name: 'Cloud Sandbox',
+  create: './scripts/start.sh',
+  destroyDisabled: true
+}
 
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
@@ -138,6 +145,20 @@ describe('registerEphemeralVmHandlers', () => {
     }
   })
 
+  it('runs native Docker doctor without a YAML recipe', async () => {
+    const repoPath = makeDir('orca-docker-ipc-repo-')
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: this handler reads only the fixture store methods supplied by makeStore.
+    registerEphemeralVmHandlers(makeStore(repoPath) as never)
+    const result = await handlers.get('ephemeralVm:doctor')?.(null, {
+      repoId: 'repo-1',
+      recipeId: 'orca-docker'
+    })
+    expect(result).toMatchObject({
+      recipeId: 'orca-docker',
+      checks: [expect.objectContaining({ id: 'docker.engine' })]
+    })
+  })
+
   it('lists recipes from local repo orca.yaml', async () => {
     const repoPath = makeDir('orca-ephemeral-vm-ipc-repo-')
     writeFileSync(
@@ -162,14 +183,7 @@ describe('registerEphemeralVmHandlers', () => {
       status: 'ok',
       repoPath,
       diagnostics: [],
-      recipes: [
-        {
-          id: 'cloud-sandbox',
-          name: 'Cloud Sandbox',
-          create: './scripts/start.sh',
-          destroyDisabled: true
-        }
-      ]
+      recipes: [expectedCloudRecipe, DOCKER_WORKSPACE_RECIPE]
     })
   })
 
@@ -196,14 +210,7 @@ describe('registerEphemeralVmHandlers', () => {
         repoName: 'Repo',
         repoPath,
         diagnostics: [],
-        recipes: [
-          {
-            id: 'cloud-sandbox',
-            name: 'Cloud Sandbox',
-            create: './scripts/start.sh',
-            destroyDisabled: true
-          }
-        ]
+        recipes: [expectedCloudRecipe, DOCKER_WORKSPACE_RECIPE]
       }
     ])
   })
@@ -238,7 +245,8 @@ describe('registerEphemeralVmHandlers', () => {
     expect(pluginService.whenReady).toHaveBeenCalled()
     expect(result.recipes).toMatchObject([
       { id: 'shared', name: 'Repository Recipe' },
-      { id: 'global', name: 'Plugin Global' }
+      { id: 'global', name: 'Plugin Global' },
+      { id: 'orca-docker', name: 'Docker' }
     ])
   })
 

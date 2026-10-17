@@ -148,3 +148,45 @@ it('stops in-flight cleanup and retains the runtime for retry', async () => {
   })
   await expect(cleanup).resolves.toMatchObject({ status: 'cleanup_failed' })
 })
+
+it('shows native Docker cleanup recovery without a shell recipe command', async () => {
+  const { DOCKER_WORKSPACE_RECIPE } = await import('../../shared/docker-workspace-recipe')
+  const userDataPath = mkdtempSync(join(tmpdir(), 'orca-docker-cleanup-display-'))
+  const repoPath = mkdtempSync(join(tmpdir(), 'orca-docker-cleanup-repo-'))
+  tempDirs.push(userDataPath, repoPath)
+  getPathMock.mockReturnValue(userDataPath)
+  upsertEphemeralVmRuntime(userDataPath, {
+    id: 'orca-docker-display',
+    recipeId: DOCKER_WORKSPACE_RECIPE.id,
+    recipe: DOCKER_WORKSPACE_RECIPE,
+    repoId: 'repo',
+    status: 'cleanup_failed',
+    cleanupStatus: 'failed',
+    createdAt: 1,
+    updatedAt: 1,
+    recipeResult: {
+      schemaVersion: 2,
+      checkoutMode: 'provisioned-root',
+      connection: {
+        type: 'ssh',
+        projectRoot: '/home/agent/project',
+        target: { label: 'Docker', host: '127.0.0.1', port: 2222, username: 'agent' }
+      },
+      userData: {
+        provider: 'docker-workspace-v1',
+        endpoint: 'unix:///original.sock',
+        containerName: 'owned-container'
+      }
+    }
+  })
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the cleanup-display handler only reads getRepo from this fixture store.
+  registerEphemeralVmRuntimeHandlers({ getRepo: () => ({ id: 'repo', path: repoPath }) } as never)
+  const result = await handlers.get('ephemeralVm:getCleanupCommand')?.(null, {
+    runtimeId: 'orca-docker-display'
+  })
+  expect(result).toMatchObject({
+    command: null,
+    cleanupDisabled: false,
+    message: expect.stringContaining('Retry cleanup')
+  })
+})

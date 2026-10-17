@@ -105,6 +105,7 @@ export async function provisionEphemeralVmRuntime(
 ): Promise<ProvisionEphemeralVmRuntimeResult> {
   const compatibility = prepareEphemeralVmCompatibilityPersistence(args)
   const start = await runEphemeralVmRecipeStart({
+    userDataPath: args.userDataPath,
     repoPath: args.repoPath,
     recipe: args.recipe,
     context: {
@@ -174,6 +175,7 @@ async function cleanupEphemeralVmRuntimeOnce(
     updatedAt: now
   })
   const cleanup = await runEphemeralVmRecipeCleanup({
+    userDataPath: args.userDataPath,
     repoPath: args.repoPath,
     recipe: args.recipe,
     context: contextFromRuntime(args.repoPath, running),
@@ -212,6 +214,7 @@ export async function suspendEphemeralVmRuntime(
     throw new Error(`Unknown ephemeral VM runtime: ${args.runtimeId}`)
   }
   const suspend = await runEphemeralVmRecipeSuspend({
+    userDataPath: args.userDataPath,
     repoPath: args.repoPath,
     recipe: args.recipe,
     context: contextFromRuntime(args.repoPath, existing),
@@ -246,6 +249,7 @@ export async function resumeEphemeralVmRuntime(
     throw new Error(`Unknown ephemeral VM runtime: ${args.runtimeId}`)
   }
   const resume = await runEphemeralVmRecipeResume({
+    userDataPath: args.userDataPath,
     repoPath: args.repoPath,
     recipe: args.recipe,
     context: contextFromRuntime(args.repoPath, existing),

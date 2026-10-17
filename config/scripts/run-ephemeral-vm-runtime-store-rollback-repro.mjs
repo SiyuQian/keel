@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -12,6 +12,12 @@ const config = 'config/vitest.config.ts'
 const tempRoot = mkdtempSync(join(tmpdir(), 'orca-sta-4274-repro-'))
 
 try {
+  // Extracted historical sources need the checkout's installed dependencies.
+  symlinkSync(
+    join(root, 'node_modules'),
+    join(tempRoot, 'node_modules'),
+    process.platform === 'win32' ? 'junction' : 'dir'
+  )
   const baselineRoot = extractSource(BASELINE_COMMIT, 'baseline')
   const affectedRoot = extractSource(AFFECTED_MAIN_COMMIT, 'affected-main')
   const revertedRoot = extractSource('HEAD', 'candidate-reverted')
