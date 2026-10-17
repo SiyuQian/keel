@@ -70,6 +70,8 @@ export function useActiveProjectSkillRuntime(): ActiveProjectSkillRuntime {
       activeRepoId: state.activeRepoId,
       activeWorktreeId: state.activeWorktreeId,
       projects: state.projects,
+      folderWorkspaces: state.folderWorkspaces,
+      projectGroups: state.projectGroups,
       repos: state.repos,
       settings: state.settings,
       worktreesByRepo: state.worktreesByRepo

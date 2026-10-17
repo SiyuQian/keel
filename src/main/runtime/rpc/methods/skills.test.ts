@@ -76,6 +76,16 @@ describe('skills.discover RPC', () => {
       expect.objectContaining({ projectRuntime: WSL_RUNTIME })
     )
   })
+  it('preserves opt-in workflow metadata through the RPC parameter schema and host scan', async () => {
+    const params = discoverMethod().params?.parse({ includeWorkflows: true })
+    expect(params).toEqual({ includeWorkflows: true })
+    await discoverMethod().handler(params, makeContext({}))
+    expect(discoverSkillsOnTarget).toHaveBeenLastCalledWith(expect.anything(), [], {
+      providerRootOverrides: {},
+      refresh: false,
+      includeWorkflows: true
+    })
+  })
 
   it('prefers a caller-supplied project runtime over store resolution', async () => {
     const resolveProjectRuntimeForWorktree = vi.fn()

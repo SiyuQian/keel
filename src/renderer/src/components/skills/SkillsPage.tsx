@@ -52,6 +52,7 @@ import { skillDeleteActionLabel } from './skill-delete-copy'
 import { shareSelectionActionLabel } from './skill-display-labels'
 import { SkillDeleteResultBand } from './SkillDeleteResultBand'
 import { useSkillDeleteFlow } from './use-skill-delete-flow'
+import { WorkflowPage } from '../workflows/WorkflowPage'
 
 const EMPTY_SKILLS: DiscoveredSkill[] = []
 const NO_FILTERS: SkillsFilterState = {
@@ -234,6 +235,16 @@ export default function SkillsPage(): React.JSX.Element {
     setInstallOpen(true)
   }
 
+  if (view === 'workflows') {
+    return (
+      <WorkflowPage
+        runtimeTarget={runtimeTarget}
+        hostLabel={hostLabel}
+        onBack={exitSharedLinks}
+        onClose={closeSkillsPage}
+      />
+    )
+  }
   return (
     <main className="flex min-h-0 flex-1 flex-col bg-background">
       {selectionMode ? (
@@ -298,6 +309,7 @@ export default function SkillsPage(): React.JSX.Element {
           onInstallFromLink={openInstallDialog}
           onManageInstalls={() => setManagementOpen(true)}
           onOpenSharedLinks={openSharedLinks}
+          onOpenWorkflows={() => setView('workflows')}
         />
       )}
       <SkillsFilterToolbar

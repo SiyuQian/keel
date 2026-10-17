@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
+import { folderWorkspaceToWorktree } from '../../../shared/folder-workspace-worktree'
 import { getDefaultSettings } from '../../../shared/constants'
 import { useAppStore } from '@/store'
 import {
@@ -123,4 +124,109 @@ describe('useActiveProjectSkillRuntime', () => {
     ).toBe(false)
     expect(hasLocalSkillRuntimeAuthority(null)).toBe(false)
   })
+})
+
+it('tracks the folder runtime slices and keeps remote folder ownership authoritative', () => {
+  useAppStore.setState({
+    activeRepoId: null,
+    runtimeEnvironmentCatalogSettled: true,
+    runtimeEnvironments: [],
+    activeWorktreeId: 'folder:notes',
+    projects: [],
+    worktreesByRepo: {},
+    repos: [
+      {
+        id: 'folder-repo',
+        path: 'C:\\project',
+        displayName: 'Project',
+        badgeColor: '',
+        addedAt: 1,
+        kind: 'folder',
+        connectionId: null,
+        projectGroupId: 'group'
+      }
+    ],
+    projectGroups: [
+      {
+        id: 'group',
+        name: 'Group',
+        parentPath: null,
+        parentGroupId: null,
+        createdFrom: 'manual',
+        tabOrder: 0,
+        isCollapsed: false,
+        color: null,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ],
+    folderWorkspaces: [
+      {
+        id: 'notes',
+        name: 'Notes',
+        projectGroupId: 'group',
+        folderPath: '\\\\wsl.localhost\\Ubuntu\\home\\dev\\notes',
+        linkedTask: null,
+        comment: '',
+        isArchived: false,
+        isUnread: false,
+        isPinned: false,
+        sortOrder: 0,
+        lastActivityAt: 1,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    ]
+  })
+  setPlatform('win32')
+  setWindowsShell('powershell.exe')
+  const { result } = renderHook(() => useActiveProjectSkillRuntime())
+  expect(result.current.agentRuntime?.wslDistro).toBe('Ubuntu')
+  const folder = useAppStore.getState().folderWorkspaces[0]!
+  act(() =>
+    useAppStore.setState({
+      activeWorktreeId: 'folder-repo::worktree',
+      activeRepoId: 'folder-repo',
+      worktreesByRepo: {
+        'folder-repo': [
+          {
+            ...folderWorkspaceToWorktree(folder),
+            id: 'folder-repo::worktree',
+            repoId: 'folder-repo',
+            path: 'C:\\worktree'
+          }
+        ]
+      }
+    })
+  )
+  expect(result.current.agentRuntime?.runtime).toBe('host')
+  act(() => useAppStore.setState({ activeWorktreeId: 'folder:notes', activeRepoId: null }))
+  expect(result.current.agentRuntime?.wslDistro).toBe('Ubuntu')
+  act(() =>
+    useAppStore.setState((state) => ({
+      folderWorkspaces: state.folderWorkspaces.map((folder) => ({
+        ...folder,
+        folderPath: 'C:\\notes'
+      }))
+    }))
+  )
+  expect(result.current.agentRuntime?.runtime).toBe('host')
+  act(() =>
+    useAppStore.setState((state) => ({
+      folderWorkspaces: state.folderWorkspaces.map((folder) => ({
+        ...folder,
+        executionHostId: 'ssh:server'
+      }))
+    }))
+  )
+  expect(result.current.projectRuntime).toBeUndefined()
+  useAppStore.setState({
+    activeRepoId: null,
+    activeWorktreeId: null,
+    repos: [],
+    folderWorkspaces: [],
+    projectGroups: [],
+    worktreesByRepo: {}
+  })
+  Reflect.deleteProperty(window, 'api')
 })

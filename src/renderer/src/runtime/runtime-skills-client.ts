@@ -48,6 +48,7 @@ export async function discoverSkillsForRuntimeTarget(
     'skills.discover',
     {
       ...(target?.refresh ? { refresh: true } : {}),
+      ...(target?.includeWorkflows ? { includeWorkflows: true } : {}),
       ...(target?.names?.length ? { names: target.names } : {}),
       ...(target?.sourceKinds?.length ? { sourceKinds: target.sourceKinds } : {})
     },

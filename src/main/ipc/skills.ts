@@ -29,7 +29,8 @@ export function registerSkillsHandlers(store: Store, runtime?: OrcaRuntimeServic
     const resolvedTarget = resolveSkillDiscoveryTarget(parsedTarget)
     return discoverSkillsOnTarget(resolvedTarget, store.getRepos(), {
       providerRootOverrides: await runtime?.resolveSkillDiscoveryProviderRoots(resolvedTarget),
-      refresh: parsedTarget?.refresh === true
+      refresh: parsedTarget?.refresh === true,
+      ...(parsedTarget?.includeWorkflows ? { includeWorkflows: true } : {})
     })
   }
   const scanInventory = (): Promise<SkillFreshnessInventory> =>

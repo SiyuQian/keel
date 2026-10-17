@@ -143,3 +143,17 @@ it('does not cache failed scans as an empty successful observation', async () =>
   expect((await discoverSkillsOnTarget(req, [])).skills).toHaveLength(1)
   expect(io.run).toHaveBeenCalledTimes(2)
 })
+
+it('shares workflow acquisition while keeping each caller name projection independent', async () => {
+  const [first, second] = await Promise.all([
+    discoverSkillsOnTarget({ ...target, names: ['alias-a'], sourceKinds: ['home'] }, [], {
+      includeWorkflows: true
+    }),
+    discoverSkillsOnTarget({ ...target, names: ['alias-b'], sourceKinds: ['home'] }, [], {
+      includeWorkflows: true
+    })
+  ])
+  expect(first.skills[0]?.directoryPath).toBe('/home/test/.codex/skills/alias-a')
+  expect(second.skills[0]?.directoryPath).toBe('/home/test/.agents/skills/alias-b')
+  expect(io.run).toHaveBeenCalledTimes(1)
+})

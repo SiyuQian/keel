@@ -52,6 +52,22 @@ afterEach(() => {
 })
 
 describe('discoverSkillsForRuntimeTarget', () => {
+  it('forwards workflow observation requests and preserves missing old-host metadata', async () => {
+    runtimeEnvironmentCall.mockResolvedValueOnce({
+      id: 'skills',
+      ok: true,
+      result: discoveryResult('example')
+    })
+    const result = await discoverSkillsForRuntimeTarget(
+      { kind: 'environment', environmentId: 'env-1' },
+      { includeWorkflows: true, runtime: 'wsl', cwd: '/client-only' }
+    )
+    expect(runtimeEnvironmentCall).toHaveBeenCalledWith(
+      expect.objectContaining({ method: 'skills.discover', params: { includeWorkflows: true } })
+    )
+    expect(result.workflows).toBeUndefined()
+    expect(discover).not.toHaveBeenCalled()
+  })
   it('scans the local host through the skills IPC for a local target', async () => {
     const result = discoveryResult('orchestration')
     discover.mockResolvedValueOnce(result)
