@@ -43,7 +43,7 @@ beforeEach(async () => {
   await writeFile(join(dir, 'src', 'prompts', 'helpers.ts'), HELPERS, 'utf8')
   await writeFile(join(dir, 'src', 'build-request.ts'), BUILD_REQUEST, 'utf8')
   await writeFile(join(dir, 'src', 'prompts', 'detail.ts'), DETAIL, 'utf8')
-  pool = new LanguageServicePool({ maxServices: 3 })
+  pool = new LanguageServicePool()
 })
 
 afterEach(async () => {
@@ -123,7 +123,7 @@ describe('navigation (#961 fixture)', () => {
   })
 
   it('answers a throwing worker request with an error instead of exiting', () => {
-    const throwing = new LanguageServicePool({ maxServices: 1 })
+    const throwing = new LanguageServicePool()
     throwing.setOverlays = () => {
       throw new Error('boom')
     }

@@ -6,7 +6,7 @@ if (!parentPort) {
   throw new Error('Code intelligence requires a worker port.')
 }
 const port = parentPort
-const pool = new LanguageServicePool({ maxServices: 1 })
+const pool = new LanguageServicePool()
 port.on('message', (request: CodeIntelWorkerRequest) => {
   port.postMessage(answerCodeIntelRequest(pool, request))
 })

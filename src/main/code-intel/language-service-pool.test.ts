@@ -27,7 +27,7 @@ afterEach(async () => {
 
 describe('LanguageServicePool', () => {
   it('finds the nearest tsconfig and serves a language service for a file', () => {
-    const pool = new LanguageServicePool({ maxServices: 3 })
+    const pool = new LanguageServicePool()
     const entry = pool.acquire(join(dir, 'src', 'prompts', 'helpers.ts'))
     expect(entry).not.toBeNull()
     expect(entry!.projectRoot).toBe(dir)
@@ -41,14 +41,14 @@ describe('LanguageServicePool', () => {
   it('returns null when no tsconfig is found', async () => {
     const orphan = await mkdtemp(join(tmpdir(), 'orca-code-intel-orphan-'))
     await writeFile(join(orphan, 'a.ts'), 'export const a = 1\n', 'utf8')
-    const pool = new LanguageServicePool({ maxServices: 3 })
+    const pool = new LanguageServicePool()
     expect(pool.acquire(join(orphan, 'a.ts'))).toBeNull()
     pool.disposeAll()
     await rm(orphan, { recursive: true, force: true })
   })
 
   it('overlays an in-memory buffer for one file over disk content', () => {
-    const pool = new LanguageServicePool({ maxServices: 3 })
+    const pool = new LanguageServicePool()
     const filePath = join(dir, 'src', 'prompts', 'helpers.ts')
     pool.setOverlay(filePath, 'export const FROM_BUFFER = 1\n', 2)
     const entry = pool.acquire(filePath)!
@@ -58,7 +58,7 @@ describe('LanguageServicePool', () => {
   })
 
   it('clears the overlay so subsequent reads fall back to disk content', () => {
-    const pool = new LanguageServicePool({ maxServices: 3 })
+    const pool = new LanguageServicePool()
     const filePath = join(dir, 'src', 'prompts', 'helpers.ts')
     pool.setOverlay(filePath, 'export const FROM_BUFFER = 1\n', 2)
     pool.acquire(filePath)!.service.getProgram()!.getSourceFile(filePath)
@@ -74,7 +74,7 @@ describe('LanguageServicePool', () => {
   })
 
   it('reuses parsed source files across queries until their content changes', async () => {
-    const pool = new LanguageServicePool({ maxServices: 1 })
+    const pool = new LanguageServicePool()
     const filePath = join(dir, 'src', 'prompts', 'helpers.ts')
     const parse = () => pool.acquire(filePath)!.service.getProgram()!.getSourceFile(filePath)!
     const first = parse()
@@ -88,14 +88,17 @@ describe('LanguageServicePool', () => {
     pool.disposeAll()
   })
 
-  it('evicts the least-recently-used service past the cap', () => {
-    const pool = new LanguageServicePool({ maxServices: 1 })
-    const a = pool.acquire(join(dir, 'src', 'prompts', 'helpers.ts'))!
-    expect(pool.size()).toBe(1)
-    // Same project root → still one service.
-    pool.acquire(join(dir, 'src', 'prompts', 'helpers.ts'))
-    expect(pool.size()).toBe(1)
-    expect(a.projectRoot).toBe(dir)
+  it('keeps one service and answers a few hundred files within the ceiling', async () => {
+    for (let i = 0; i < 300; i++) {
+      await writeFile(join(dir, 'src', `f${i}.ts`), `export const v${i}: number = ${i}\n`, 'utf8')
+    }
+    const pool = new LanguageServicePool()
+    const filePath = join(dir, 'src', 'f0.ts')
+    pool.acquire(filePath)!.service.getProgram()
+    // Ceiling: a warm per-query rebuild (read + sha1 of 300 files) must stay under 5s.
+    const start = performance.now()
+    pool.acquire(filePath)!.service.getProgram()
+    expect(performance.now() - start).toBeLessThan(5000)
     pool.disposeAll()
   })
 })

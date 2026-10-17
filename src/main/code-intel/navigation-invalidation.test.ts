@@ -9,7 +9,7 @@ let root: string
 let pool: LanguageServicePool
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'code-intel-invalidation-'))
-  pool = new LanguageServicePool({ maxServices: 3 })
+  pool = new LanguageServicePool()
   await writeFile(join(root, 'tsconfig.json'), JSON.stringify({ include: ['*.ts'] }))
   await writeFile(join(root, 'a.ts'), 'export const value = 1\n')
   await writeFile(join(root, 'b.ts'), 'import { value } from "./a"\nvalue\n')

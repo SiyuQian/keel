@@ -207,10 +207,10 @@
     "stream-json": "3.7.0",
     "tldts": "7.4.16",
     "tweetnacl": "^1.0.3",
+    "typescript-api": "npm:typescript@6.0.3",
     "ws": "^8.22.0",
     "yaml": "^2.9.1",
-    "zod": "~4.6.5",
-    "typescript-api": "npm:typescript@6.0.3"
+    "zod": "~4.6.5"
   },
   "devDependencies": {
     "@dnd-kit/core": "^6.3.1",

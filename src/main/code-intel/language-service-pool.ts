@@ -5,19 +5,12 @@ import { isPathInsideOrEqual } from '../../shared/cross-platform-path'
 
 export type LanguageServiceEntry = { projectRoot: string; service: ts.LanguageService }
 type Overlay = { text: string; version: number }
-type PoolOptions = { maxServices: number }
 
 export class LanguageServicePool {
-  private readonly services = new Map<string, ts.LanguageService>()
+  private current: ts.LanguageService | null = null
   private readonly overlays = new Map<string, Overlay>()
   // Why: unchanged files (lib and dependency .d.ts) keep their parse across per-query services.
   private readonly registry = ts.createDocumentRegistry()
-
-  constructor(private readonly options: PoolOptions) {}
-
-  size(): number {
-    return this.services.size
-  }
 
   setOverlay(filePath: string, text: string, version: number): void {
     this.overlays.set(resolve(filePath), { text, version })
@@ -36,7 +29,8 @@ export class LanguageServicePool {
 
   acquire(filePath: string, workspaceRoot?: string): LanguageServiceEntry | null {
     // shortcut: new program per query keeps config and resolution fresh; parses are shared via
-    // the content-hashed registry. Keep a watched service per config if checking gets slow.
+    // the content-hashed registry. Each query reads and hashes every project file (a few hundred
+    // files take well under a second); keep a watched service per config if repos outgrow that.
     const config = this.findConfig(filePath, workspaceRoot)
     if (!config) {
       return null
@@ -84,17 +78,13 @@ export class LanguageServicePool {
     // Build before releasing the previous service, or the registry drops every shared parse.
     service.getProgram()
     this.disposeAll()
-    if (this.options.maxServices > 0) {
-      this.services.set(config, service)
-    }
+    this.current = service
     return { projectRoot, service }
   }
 
   disposeAll(): void {
-    for (const service of this.services.values()) {
-      service.dispose()
-    }
-    this.services.clear()
+    this.current?.dispose()
+    this.current = null
   }
 
   private findConfig(filePath: string, workspaceRoot?: string): string | null {
