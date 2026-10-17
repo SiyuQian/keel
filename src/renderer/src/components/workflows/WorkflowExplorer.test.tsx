@@ -97,6 +97,26 @@ it('supports stage selection, previous/next, original YAML, Skill source and sea
   })
   expect(screen.getByText('No matching workflows.')).toBeTruthy()
 })
+it('clears the search on Escape, then leaves Workflows from the focused searchbox', async () => {
+  discover.mockResolvedValue(result)
+  const onBack = vi.fn()
+  render(
+    <WorkflowExplorer
+      runtimeTarget={{ kind: 'local' }}
+      hostLabel="This machine"
+      onBack={onBack}
+      onClose={() => {}}
+    />
+  )
+  await screen.findByRole('heading', { name: 'example', level: 2 })
+  const box = screen.getByRole('searchbox', { name: 'Search workflows' }) as HTMLInputElement
+  fireEvent.change(box, { target: { value: 'nothing' } })
+  fireEvent.keyDown(box, { key: 'Escape' })
+  expect(box.value).toBe('')
+  expect(onBack).not.toHaveBeenCalled()
+  fireEvent.keyDown(box, { key: 'Escape' })
+  expect(onBack).toHaveBeenCalledTimes(1)
+})
 it('distinguishes old-host metadata from a successful empty observation', async () => {
   discover.mockResolvedValue({ skills: [], sources: [], scannedAt: 1 })
   explorer()

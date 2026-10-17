@@ -129,6 +129,18 @@ export function WorkflowExplorer({
               placeholder={translate('workflows.search', 'Search workflows')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                // Why: the page-level Escape handler skips inputs, so the box must leave itself.
+                if (event.key !== 'Escape') {
+                  return
+                }
+                event.preventDefault()
+                if (query) {
+                  setQuery('')
+                } else {
+                  onBack()
+                }
+              }}
             />
           </div>
           <nav
